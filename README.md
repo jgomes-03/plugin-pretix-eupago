@@ -1,5 +1,5 @@
 # EuPago Integration Payment Provider - Pretix
-## Versão 1.0.1
+## Versão 1.1.0
 
 Este plugin fornece integração completa com os métodos de pagamento EuPago para o sistema Pretix, seguindo as melhores práticas e padrões do framework.
 
@@ -45,7 +45,7 @@ Este plugin deteta automaticamente quando os pagamentos são concluídos e atual
 ### Método Primário: Webhooks
 - **Notificações em tempo real** da EuPago quando o estado do pagamento muda
 - **Atualizações imediatas** - estado de pagamento atualizado segundos após a conclusão
-- **Validação segura** utilizando verificação de assinatura HMAC-SHA256
+- **Validação segura** utilizando verificação de assinatura HMAC-SHA256 e suportando dados cifrados
 - **Todos os métodos de pagamento suportados** (MBWay, Cartão de Crédito, Multibanco, PayShop)
 
 ### Método de Reserva: Consulta API  
@@ -95,7 +95,7 @@ Se estiver a utilizar o Pretix num ambiente Docker:
 FROM pretix/standalone:latest
 USER root
 WORKDIR /pretix/src
-RUN pip3 install pretix-eupago==1.0.0
+RUN pip3 install pretix-eupago==1.1.0
 USER pretixuser
 ```
 
@@ -125,11 +125,7 @@ Ou utilizando o script de instalação:
 ### Configuração de Webhook
 Os webhooks são configurados automaticamente quando os pagamentos são criados. Não é necessária configuração manual de webhook!
 
-**Formato da URL do Webhook**: 
-- URL recomendada (nova): `https://seudominio.com/_eupago/webhook/`
-- URL compatível (legada): `https://seudominio.com/_eupago_v2/webhook/`
-
-> **Nota importante:** Se estiver a atualizar de uma versão anterior (eupago_v2), verifique se a URL do webhook na sua conta EuPago está correta. Ambas as URLs funcionam para compatibilidade retroativa, mas recomendamos a utilização da nova URL para instalações novas.
+**Formato da URL do Webhook**: `https://seudominio.com/seuevento/eupago/webhook/`
 
 ## MBWay - Experiência de Utilizador Melhorada
 
@@ -158,10 +154,6 @@ O método de pagamento MBWay inclui uma **página de temporizador interativa** q
 ### Abordagem Recomendada: Webhook Único e Global
 
 **URL:** `https://seu-site.com/_eupago/webhook/`
-
-> **Nota de compatibilidade:** Para instalações que anteriormente utilizavam o plugin `eupago_v2`, 
-> a URL legacy `https://seu-site.com/_eupago_v2/webhook/` continua a funcionar para garantir 
-> compatibilidade com configurações existentes na EuPago.
 
 #### Vantagens:
 - **Simplicidade**: Uma única URL para configurar
@@ -232,10 +224,6 @@ Configure cron jobs para verificar automaticamente pagamentos pendentes:
 6. Encomenda é marcada como paga
 
 ## Registo de Alterações
-
-### v1.0.1
-- Adicionado suporte para URLs de webhook legadas (_eupago_v2) para compatibilidade retroativa
-- Melhorias na documentação sobre configuração de webhooks
 
 ### v1.0.0
 - Melhorias na página de temporizador MBWay

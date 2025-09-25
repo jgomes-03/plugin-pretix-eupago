@@ -11,7 +11,7 @@ except:
 
 setup(
     name='pretix-eupago',
-    version='1.0.0',
+    version='1.1.0',
     description='EuPago payment provider for pretix',
     long_description=long_description,
     url='https://github.com/jgomes-03/plugin-pretix-eupago',
