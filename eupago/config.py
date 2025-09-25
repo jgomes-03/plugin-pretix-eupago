@@ -8,7 +8,7 @@ DEFAULT_SETTINGS = {
     'client_secret': '',
     'webhook_secret': '',
     'endpoint': 'sandbox',
-    'debug_mode': False,  # When enabled, provides additional debugging information
+    'debug_mode': False,  # When enabled, provides additional debugging information and accepts more signature formats
     
     # Method-specific settings
     'cc_description': 'Pay securely with your credit card',

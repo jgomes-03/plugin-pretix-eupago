@@ -478,6 +478,11 @@ def _handle_webhook_v2(request, event_data, event_body):
     # Validate signature if provided
     if webhook_signature:
         if provider and hasattr(provider, '_validate_webhook_signature'):
+            # Log more information for debugging
+            if debug_mode:
+                logger.info(f'Validating webhook signature for payment: {payment.full_id}')
+                logger.info(f'Webhook signature from header: {webhook_signature[:20]}... (length: {len(webhook_signature)})')
+                
             is_valid = provider._validate_webhook_signature(event_body, webhook_signature)
             
             if not is_valid:
@@ -488,6 +493,8 @@ def _handle_webhook_v2(request, event_data, event_body):
                 else:
                     # In normal mode, reject the request
                     return HttpResponseBadRequest('Invalid signature')
+            else:
+                logger.info(f'Webhook signature validation successful for payment: {payment.full_id}')
         else:
             logger.warning(f'Payment provider {payment.provider} does not support signature validation')
     else:

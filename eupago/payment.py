@@ -201,13 +201,8 @@ class EuPagoBaseProvider(BasePaymentProvider):
         }
         """
         # First try organizer settings
-        webhook_secret = self.organizer.settings.get('payment_eupago_webhook_secret')
+        webhook_secret = self.get_setting('webhook_secret')
         
-        # If not found with payment_ prefix, try without prefix
-        if not webhook_secret:
-            webhook_secret = self.organizer.settings.get('eupago_webhook_secret')
-        
-        # If not found in organizer settings, try environment variable
         if not webhook_secret:
             import os
             webhook_secret = os.environ.get('EUPAGO_WEBHOOK_SECRET', '')
@@ -236,38 +231,42 @@ class EuPagoBaseProvider(BasePaymentProvider):
             import hmac
             import hashlib
             
-            # For debugging
-            logger.debug(f'Webhook payload: {payload[:100]}... (length: {len(payload)})')
-            logger.debug(f'Webhook signature: {signature} (length: {len(signature)})')
-            logger.debug(f'Webhook secret length: {len(webhook_secret)}')
+            # Enhanced debug logging when debug_mode is enabled
+            if self.debug_mode:
+                logger.info(f'Debug mode enabled: Showing detailed webhook validation info')
+                logger.info(f'Webhook payload (first 100 chars): {payload[:100]}... (length: {len(payload)})')
+                logger.info(f'Webhook signature received: {signature[:20]}... (length: {len(signature)})')
+                logger.info(f'Webhook secret length: {len(webhook_secret)}')
             
-            # Generate expected signature exactly as EuPago's PHP function:
-            # hash_hmac('sha256', $data, $key, true)
-            # The 'true' parameter returns raw binary data instead of hex string
+            # EXACTLY match EuPago's PHP implementation:
+            # 1. Generate signature with hash_hmac('sha256', $data, $key, true) 
+            # - In Python, hmac.new(...).digest() gives us the raw binary output
             expected_signature = hmac.new(
                 webhook_secret.encode('utf-8'),
                 payload.encode('utf-8'),
                 hashlib.sha256
-            ).digest()  # Get raw bytes instead of hexdigest
+            ).digest()
             
-            # Try to decode the signature - different formats might be used
+            # 2. Base64 decode the received signature as in PHP's base64_decode($signature)
             try:
-                # Standard case - signature is base64 encoded as in EuPago docs
+                # Decode the signature from base64 to match PHP's base64_decode() behavior
                 received_signature = base64.b64decode(signature)
-                logger.debug(f'Decoded signature as base64, length: {len(received_signature)}')
+                if self.debug_mode:
+                    logger.info(f'Decoded signature from base64 successfully, length: {len(received_signature)}')
             except Exception as e:
-                logger.warning(f'Failed to decode signature as base64: {e}')
-                # Fallback: try to use the signature as-is (might be raw bytes in some cases)
+                if self.debug_mode:
+                    logger.warning(f'Failed to decode signature as base64: {e}')
+                # If decoding fails, try to use the raw signature as a fallback
                 received_signature = signature.encode('utf-8')
-                logger.debug(f'Using signature as UTF-8 bytes, length: {len(received_signature)}')
+                if self.debug_mode:
+                    logger.info(f'Using signature as raw bytes, length: {len(received_signature)}')
             
-            # Compare signatures using constant-time comparison to prevent timing attacks
-            # In EuPago's PHP code: hash_equals($generatedSignature, base64_decode($signature))
+            # 3. Compare using constant-time comparison (equivalent to PHP's hash_equals)
             is_valid = hmac.compare_digest(expected_signature, received_signature)
             
-            # Debug output for troubleshooting
-            if not is_valid:
-                # Try various formats to see if any match
+            # Enhanced debug output for troubleshooting
+            if self.debug_mode or not is_valid:
+                # Show different formats to help diagnose the issue
                 expected_b64 = base64.b64encode(expected_signature).decode('utf-8')
                 expected_hex = expected_signature.hex()
                 
@@ -277,11 +276,20 @@ class EuPagoBaseProvider(BasePaymentProvider):
                 logger.warning(f'Expected signature (hex, len={len(expected_hex)}): {expected_hex}')
                 logger.warning(f'Received signature (len={len(received_signature)}): {received_signature}')
                 
-                # Fallback check with different encoding (some implementations vary)
-                if hmac.compare_digest(expected_hex.encode('utf-8'), signature.encode('utf-8')):
-                    logger.info('Signature matched using hex comparison instead of raw binary')
-                    return True
-            else:
+                # Try additional verification methods as fallbacks
+                additional_checks = [
+                    (expected_signature, signature.encode('utf-8'), "raw binary vs raw UTF-8"),
+                    (expected_b64.encode('utf-8'), signature.encode('utf-8'), "base64 vs raw UTF-8"),
+                    (expected_hex.encode('utf-8'), signature.encode('utf-8'), "hex vs raw UTF-8"),
+                ]
+                
+                for expected, received, method in additional_checks:
+                    if hmac.compare_digest(expected, received):
+                        logger.info(f'Signature matched using alternative method: {method}')
+                        if self.debug_mode:
+                            return True  # Accept alternative methods only in debug mode
+                
+            if is_valid:
                 logger.info('Webhook signature validation successful')
             
             return is_valid
