@@ -35,18 +35,34 @@ class EuPagoBaseProvider(BasePaymentProvider):
     def get_setting(self, name, default=None):
         """Get a setting with proper prefix handling"""
         # First try with payment_eupago prefix (standard pretix convention)
-        value = self.organizer.settings.get(f'payment_eupago_{name}', None)
+        try:
+            value = self.organizer.settings.get(f'payment_eupago_{name}', None)
+        except Exception:
+            value = None
         
         # If not found, try with just eupago prefix (backward compatibility)
         if value is None:
-            value = self.organizer.settings.get(f'eupago_{name}', default)
-            
+            try:
+                value = self.organizer.settings.get(f'eupago_{name}', default)
+            except Exception:
+                value = default
+                
         return value
     
     @property
     def debug_mode(self):
         """Check if debug mode is enabled"""
-        return bool(self.get_setting('debug_mode', False))
+        try:
+            value = self.get_setting('debug_mode', False)
+            # Handle various possible values
+            if isinstance(value, bool):
+                return value
+            elif isinstance(value, str):
+                return value.lower() in ('true', '1', 'yes', 'on')
+            else:
+                return bool(value)
+        except Exception:
+            return False
             
     @property
     def test_mode_message(self):
