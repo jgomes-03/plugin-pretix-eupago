@@ -171,8 +171,32 @@ class EuPagoBaseProvider(BasePaymentProvider):
             raise PaymentException(_('Payment provider communication failed. Please try again later.'))
 
     def _validate_webhook_signature(self, payload: str, signature: str) -> bool:
-        """Validate webhook signature according to EuPago documentation"""
+        """Validate webhook signature according to EuPago documentation
+        
+        EuPago webhooks use HMAC-SHA256 signatures where:
+        1. The webhook secret is the key
+        2. The raw payload is the message
+        3. The signature is base64-encoded in the X-Signature header
+        """
+        # First try organizer settings
         webhook_secret = self.organizer.settings.get('eupago_webhook_secret')
+        
+        # If not found in organizer settings, try environment variable
+        if not webhook_secret:
+            import os
+            webhook_secret = os.environ.get('EUPAGO_WEBHOOK_SECRET', '')
+            
+            # If still not found, try a local file
+            if not webhook_secret:
+                try:
+                    import os.path
+                    secret_file = os.path.join(os.path.dirname(__file__), 'webhook_secret.txt')
+                    if os.path.exists(secret_file):
+                        with open(secret_file, 'r') as f:
+                            webhook_secret = f.read().strip()
+                except Exception:
+                    pass
+        
         if not webhook_secret:
             logger.warning('No webhook secret configured - skipping signature validation')
             return True  # Skip validation if no secret is set
@@ -182,17 +206,18 @@ class EuPagoBaseProvider(BasePaymentProvider):
             return False
             
         try:
-            # Generate expected signature according to EuPago docs
+            # Generate expected signature according to EuPago docs - raw binary output
             expected_signature = hmac.new(
-                webhook_secret.encode(),
-                payload.encode(),
+                webhook_secret.encode('utf-8'),
+                payload.encode('utf-8'),
                 hashlib.sha256
             ).digest()  # Get raw bytes instead of hexdigest
             
-            # Compare with base64-decoded signature from header
+            # Decode the base64 signature from the header to raw bytes
             import base64
             received_signature = base64.b64decode(signature)
             
+            # Compare signatures using constant-time comparison to prevent timing attacks
             is_valid = hmac.compare_digest(expected_signature, received_signature)
             
             if not is_valid:

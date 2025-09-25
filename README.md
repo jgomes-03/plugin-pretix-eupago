@@ -1,5 +1,5 @@
 # EuPago Integration Payment Provider - Pretix
-## Versão 1.1.0
+## Versão 1.2.0
 
 Este plugin fornece integração completa com os métodos de pagamento EuPago para o sistema Pretix, seguindo as melhores práticas e padrões do framework.
 
@@ -45,7 +45,8 @@ Este plugin deteta automaticamente quando os pagamentos são concluídos e atual
 ### Método Primário: Webhooks
 - **Notificações em tempo real** da EuPago quando o estado do pagamento muda
 - **Atualizações imediatas** - estado de pagamento atualizado segundos após a conclusão
-- **Validação segura** utilizando verificação de assinatura HMAC-SHA256 e suportando dados cifrados
+- **Validação segura** utilizando verificação de assinatura HMAC-SHA256
+- **Suporte para webhooks cifrados** (AES-256-CBC) com decifração automática (novidade na v1.2.0)
 - **Todos os métodos de pagamento suportados** (MBWay, Cartão de Crédito, Multibanco, PayShop)
 
 ### Método de Reserva: Consulta API  

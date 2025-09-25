@@ -5,9 +5,7 @@
 # This software is protected by a proprietary license.
 # Modification, or distribution without express permission is prohibited.
 #
-from .apps import PluginApp
-
-__version__ = '2.1.1'
+from .apps import PluginApp, __version__
 
 # Expose PretixPluginMeta for entry point
 PretixPluginMeta = PluginApp.PretixPluginMeta

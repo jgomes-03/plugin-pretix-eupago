@@ -72,8 +72,10 @@ echo "2. Configure EuPago API credentials in Event Settings"
 echo "3. Enable desired payment methods"
 echo "4. Set up webhook URL and encryption in EuPago dashboard:"
 echo "   - URL: https://yourdomain.com/_eupago/webhook/"
-echo "   - Add the webhook secret provided by EuPago to your plugin settings"
-echo "   - See WEBHOOK_SETUP.md for detailed configuration instructions"
+echo "   - Configure the webhook secret for decryption using one of these methods:"
+echo "     a) Set environment variable: export EUPAGO_WEBHOOK_SECRET='your-secret-here'"
+echo "     b) Run: ./setup_webhook_secret.sh 'your-secret-here'"
+echo "   - See WEBHOOK_ENCRYPTION.md for detailed configuration instructions"
 echo ""
 
 if [ "$ENVIRONMENT" = "development" ]; then

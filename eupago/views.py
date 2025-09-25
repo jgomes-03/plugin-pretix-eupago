@@ -344,11 +344,24 @@ def _handle_webhook_v2(request, event_data, event_body):
         # Try to get webhook secret from settings
         webhook_secret = None
         try:
-            from django.conf import settings
-            plugin_settings = settings.PLUGINS_CHECKOUT_SETTINGS.get('eupago', {})
-            webhook_secret = plugin_settings.get('webhook_secret', '')
+            # First try environment variable (simplest and most reliable method)
+            import os
+            webhook_secret = os.environ.get('EUPAGO_WEBHOOK_SECRET', '')
+            if webhook_secret:
+                logger.info("Using webhook secret from environment variable")
+                
+            # If no environment variable, try to read from a local file
+            if not webhook_secret:
+                try:
+                    secret_file = os.path.join(os.path.dirname(__file__), 'webhook_secret.txt')
+                    if os.path.exists(secret_file):
+                        with open(secret_file, 'r') as f:
+                            webhook_secret = f.read().strip()
+                            logger.info("Using webhook secret from webhook_secret.txt file")
+                except Exception as e:
+                    logger.debug(f"Could not read webhook secret file: {e}")
         except Exception as e:
-            logger.warning(f'Could not get webhook_secret from settings: {e}')
+            logger.warning(f'Could not get webhook_secret: {e}')
         
         # Decrypt the data using the IV from header
         decrypted_data = _decrypt_webhook_data(event_data['data'], iv=iv, webhook_secret=webhook_secret)
@@ -951,19 +964,25 @@ def _decrypt_webhook_data(encrypted_data, iv=None, webhook_secret=None):
         
         # Get webhook secret from settings if not provided
         if not webhook_secret:
-            from django.conf import settings
-            from pretix.base.settings import GlobalSettingsObject
-            global_settings = GlobalSettingsObject()
-            webhook_secret = global_settings.settings.get('eupago_webhook_secret', '')
-            
-            # If still no webhook secret, try getting it from plugin settings
+            # First try environment variable (simplest and most reliable method)
+            import os
+            webhook_secret = os.environ.get('EUPAGO_WEBHOOK_SECRET', '')
+            if webhook_secret:
+                logger.info("Using webhook secret from environment variable")
+                
+            # If no environment variable, try to read from a local file
             if not webhook_secret:
-                # Try to get from plugin settings - this varies by how your settings are stored
-                plugin_settings = settings.PLUGINS_CHECKOUT_SETTINGS.get('eupago', {})
-                webhook_secret = plugin_settings.get('webhook_secret', '')
+                try:
+                    secret_file = os.path.join(os.path.dirname(__file__), 'webhook_secret.txt')
+                    if os.path.exists(secret_file):
+                        with open(secret_file, 'r') as f:
+                            webhook_secret = f.read().strip()
+                            logger.info("Using webhook secret from webhook_secret.txt file")
+                except Exception as e:
+                    logger.debug(f"Could not read webhook secret file: {e}")
         
         if not webhook_secret:
-            logger.error('Webhook secret not configured')
+            logger.error('Webhook secret not configured - please set EUPAGO_WEBHOOK_SECRET environment variable')
             return None
         
         # Create 256-bit AES key from webhook secret using SHA-256
