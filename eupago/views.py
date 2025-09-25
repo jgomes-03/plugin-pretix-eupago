@@ -297,18 +297,23 @@ def webhook(request, *args, **kwargs):
         logger.info(f'Webhook headers: {dict(request.headers)}')
         logger.info(f'Webhook query params: {dict(request.GET)}')
         
-        # Handle both POST (production) and GET (testing)
-        if request.method == 'GET':
-            # GET method - parameters in URL (for testing)
-            logger.info('Processing GET webhook (test mode)')
-            return _handle_webhook_v1(request)
-        else:
-            # POST method - normal webhook processing
-            try:
-                event_body = request.body.decode('utf-8').strip()
-                logger.info(f'Webhook body: {event_body}')
-                
-                # Try to parse as JSON first (Webhooks 2.0)
+    # Handle both POST (production) and GET (testing)
+    if request.method == 'GET':
+        # GET method - parameters in URL (for testing)
+        logger.info('Processing GET webhook (test mode)')
+        return _handle_webhook_v1(request)
+    else:
+        # POST method - normal webhook processing
+        try:
+            event_body = request.body.decode('utf-8').strip()
+            logger.info(f'Webhook body: {event_body}')
+            
+            # Log webhook signature details
+            webhook_signature = request.META.get('HTTP_X_SIGNATURE', '')
+            if webhook_signature:
+                logger.info(f'Webhook signature provided in X-Signature header: {webhook_signature[:10]}... (length: {len(webhook_signature)})')
+            else:
+                logger.info('No webhook signature provided in X-Signature header')                # Try to parse as JSON first (Webhooks 2.0)
                 if event_body and event_body.startswith('{'):
                     try:
                         event_data = json.loads(event_body)
@@ -456,14 +461,32 @@ def _handle_webhook_v2(request, event_data, event_body):
         logger.warning(f'Payment not found for identifier={identifier}, reference={reference}')
         return HttpResponse('Payment not found', status=200)
     
-    # Skip signature validation for testing (when no signature provided)
+    # Validate webhook signature
     webhook_signature = request.META.get('HTTP_X_SIGNATURE', '')
+    provider = payment.payment_provider
+    
+    # Check if debug mode is enabled
+    debug_mode = hasattr(provider, 'debug_mode') and provider.debug_mode
+    
+    if debug_mode:
+        logger.info(f'Debug mode is enabled for {payment.provider} - extra logging will be shown')
+        logger.info(f'Webhook signature from header: {webhook_signature}')
+    
+    # Validate signature if provided
     if webhook_signature:
-        provider = payment.payment_provider
         if provider and hasattr(provider, '_validate_webhook_signature'):
-            if not provider._validate_webhook_signature(event_body, webhook_signature):
+            is_valid = provider._validate_webhook_signature(event_body, webhook_signature)
+            
+            if not is_valid:
                 logger.warning(f'Invalid webhook signature for payment: {payment.full_id}')
-                return HttpResponseBadRequest('Invalid signature')
+                if debug_mode:
+                    # In debug mode, continue despite invalid signature
+                    logger.info('Continuing with invalid signature due to debug mode being enabled')
+                else:
+                    # In normal mode, reject the request
+                    return HttpResponseBadRequest('Invalid signature')
+        else:
+            logger.warning(f'Payment provider {payment.provider} does not support signature validation')
     else:
         logger.info('No webhook signature provided - skipping validation (test mode)')
     
@@ -754,6 +777,12 @@ class EuPagoSettingsForm(SettingsForm):
         ],
         initial='sandbox',
         widget=forms.Select(attrs={'class': 'form-control'})
+    )
+    eupago_debug_mode = forms.BooleanField(
+        label=_('Debug Mode'),
+        help_text=_('Enable additional debugging information. When enabled, webhook signature validation errors will be logged in detail, and invalid signatures will be accepted for testing purposes. Disable in production.'),
+        required=False,
+        initial=False
     )
     eupago_cc_description = forms.CharField(
         label=_('Credit Card Description'),

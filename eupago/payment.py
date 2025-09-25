@@ -32,9 +32,25 @@ class EuPagoBaseProvider(BasePaymentProvider):
         # Acessar as configurações do organizador através do event
         self.organizer = event.organizer
 
+    def get_setting(self, name, default=None):
+        """Get a setting with proper prefix handling"""
+        # First try with payment_eupago prefix (standard pretix convention)
+        value = self.organizer.settings.get(f'payment_eupago_{name}', None)
+        
+        # If not found, try with just eupago prefix (backward compatibility)
+        if value is None:
+            value = self.organizer.settings.get(f'eupago_{name}', default)
+            
+        return value
+    
+    @property
+    def debug_mode(self):
+        """Check if debug mode is enabled"""
+        return bool(self.get_setting('debug_mode', False))
+            
     @property
     def test_mode_message(self):
-        if self.organizer.settings.get('eupago_endpoint', 'sandbox') == 'sandbox':
+        if self.get_setting('endpoint', 'sandbox') == 'sandbox':
             return _('The EuPago plugin is operating in sandbox mode. No real payments will be processed.')
         return None
 
@@ -63,7 +79,7 @@ class EuPagoBaseProvider(BasePaymentProvider):
             return False
             
         # Verificações adicionais específicas do EuPago em ambiente de produção
-        if self.organizer.settings.get('eupago_endpoint', 'sandbox') == 'live':
+        if self.get_setting('endpoint', 'sandbox') == 'live':
             if not self._check_settings():
                 logger.info(f"{self.identifier} has invalid settings for live environment")
                 return False
@@ -73,23 +89,23 @@ class EuPagoBaseProvider(BasePaymentProvider):
 
     def _check_settings(self) -> bool:
         """Check if all required settings are configured"""
-        required_settings = ['eupago_api_key']  # Simplified: only API key is required
+        required_settings = ['api_key']  # Simplified: only API key is required
         
         # Log para debug
         logger.info(f"Checking settings for {self.identifier}")
         for setting in required_settings:
-            value = self.organizer.settings.get(setting)
+            value = self.get_setting(setting)
             logger.info(f"Setting {setting}: {'configured' if value else 'not configured'}")
         
         # Verificar configurações
         for setting in required_settings:
-            if not self.organizer.settings.get(setting):
+            if not self.get_setting(setting):
                 return False
         return True
 
     def _get_api_base_url(self) -> str:
         """Get the appropriate API base URL"""
-        if self.organizer.settings.get('eupago_endpoint', 'sandbox') == 'live':
+        if self.get_setting('endpoint', 'sandbox') == 'live':
             return 'https://clientes.eupago.pt'
         return 'https://sandbox.eupago.pt'
 
@@ -98,7 +114,7 @@ class EuPagoBaseProvider(BasePaymentProvider):
         from .config import AUTH_METHODS
         
         headers = {'Content-Type': 'application/json'}
-        api_key = self.organizer.settings.get("eupago_api_key")
+        api_key = self.get_setting("api_key")
         
         # Add authentication based on payment method
         if payment_method and AUTH_METHODS.get(payment_method) == 'header':
@@ -128,7 +144,7 @@ class EuPagoBaseProvider(BasePaymentProvider):
         
         url = f"{self._get_api_base_url()}{endpoint}"
         headers = self._get_headers(payment_method)
-        api_key = self.organizer.settings.get("eupago_api_key")
+        api_key = self.get_setting("api_key")
         
         # Add API key to body for certain payment methods
         if payment_method and AUTH_METHODS.get(payment_method) == 'body':
@@ -177,6 +193,12 @@ class EuPagoBaseProvider(BasePaymentProvider):
         1. The webhook secret is the key
         2. The raw payload is the message
         3. The signature is base64-encoded in the X-Signature header
+        
+        PHP example from EuPago docs:
+        function verifySignature($data, $signature, $key) {
+            $generatedSignature = hash_hmac('sha256', $data, $key, true);
+            return hash_equals($generatedSignature, base64_decode($signature));
+        }
         """
         # First try organizer settings
         webhook_secret = self.organizer.settings.get('payment_eupago_webhook_secret')
@@ -210,8 +232,17 @@ class EuPagoBaseProvider(BasePaymentProvider):
             return False
             
         try:
-            # Generate expected signature according to EuPago docs
-            # Their PHP code uses: hash_hmac('sha256', $data, $key, true)
+            import base64
+            import hmac
+            import hashlib
+            
+            # For debugging
+            logger.debug(f'Webhook payload: {payload[:100]}... (length: {len(payload)})')
+            logger.debug(f'Webhook signature: {signature} (length: {len(signature)})')
+            logger.debug(f'Webhook secret length: {len(webhook_secret)}')
+            
+            # Generate expected signature exactly as EuPago's PHP function:
+            # hash_hmac('sha256', $data, $key, true)
             # The 'true' parameter returns raw binary data instead of hex string
             expected_signature = hmac.new(
                 webhook_secret.encode('utf-8'),
@@ -219,22 +250,44 @@ class EuPagoBaseProvider(BasePaymentProvider):
                 hashlib.sha256
             ).digest()  # Get raw bytes instead of hexdigest
             
-            # Decode the base64 signature from the header to raw bytes
-            # In EuPago's PHP code: base64_decode($signature)
-            import base64
-            received_signature = base64.b64decode(signature)
+            # Try to decode the signature - different formats might be used
+            try:
+                # Standard case - signature is base64 encoded as in EuPago docs
+                received_signature = base64.b64decode(signature)
+                logger.debug(f'Decoded signature as base64, length: {len(received_signature)}')
+            except Exception as e:
+                logger.warning(f'Failed to decode signature as base64: {e}')
+                # Fallback: try to use the signature as-is (might be raw bytes in some cases)
+                received_signature = signature.encode('utf-8')
+                logger.debug(f'Using signature as UTF-8 bytes, length: {len(received_signature)}')
             
             # Compare signatures using constant-time comparison to prevent timing attacks
             # In EuPago's PHP code: hash_equals($generatedSignature, base64_decode($signature))
             is_valid = hmac.compare_digest(expected_signature, received_signature)
             
+            # Debug output for troubleshooting
             if not is_valid:
-                logger.warning(f'Webhook signature validation failed. Expected signature length: {len(expected_signature)}, received: {len(received_signature)}')
+                # Try various formats to see if any match
+                expected_b64 = base64.b64encode(expected_signature).decode('utf-8')
+                expected_hex = expected_signature.hex()
+                
+                logger.warning(f'Webhook signature validation failed.')
+                logger.warning(f'Expected signature (raw, len={len(expected_signature)}): {expected_signature}')
+                logger.warning(f'Expected signature (b64, len={len(expected_b64)}): {expected_b64}')
+                logger.warning(f'Expected signature (hex, len={len(expected_hex)}): {expected_hex}')
+                logger.warning(f'Received signature (len={len(received_signature)}): {received_signature}')
+                
+                # Fallback check with different encoding (some implementations vary)
+                if hmac.compare_digest(expected_hex.encode('utf-8'), signature.encode('utf-8')):
+                    logger.info('Signature matched using hex comparison instead of raw binary')
+                    return True
+            else:
+                logger.info('Webhook signature validation successful')
             
             return is_valid
             
         except Exception as e:
-            logger.error(f'Error validating webhook signature: {e}')
+            logger.error(f'Error validating webhook signature: {e}', exc_info=True)
             return False
     
     def check_payment_status(self, payment: OrderPayment) -> dict:
