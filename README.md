@@ -1,5 +1,5 @@
 # EuPago Integration Payment Provider - Pretix
-## Versão 0.2
+## Versão 0.3
 
 Este plugin fornece integração completa com os métodos de pagamento EuPago para o sistema Pretix, seguindo as melhores práticas e padrões do framework.
 

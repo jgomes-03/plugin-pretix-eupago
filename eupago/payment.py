@@ -207,14 +207,10 @@ class EuPagoBaseProvider(BasePaymentProvider):
         
         EuPago webhooks use HMAC-SHA256 signatures where:
         1. The webhook secret is the key
-        2. The raw payload is the message
-        3. The signature is base64-encoded in the X-Signature header
+        2. The raw payload is the message  
+        3. The signature is HEX-encoded in the X-Signature header (NOT Base64!)
         
-        PHP example from EuPago docs:
-        function verifySignature($data, $signature, $key) {
-            $generatedSignature = hash_hmac('sha256', $data, $key, true);
-            return hash_equals($generatedSignature, base64_decode($signature));
-        }
+        CORRECTION: EuPago uses hexadecimal encoding for signatures, not base64.
         """
         # First try organizer settings
         webhook_secret = self.get_setting('webhook_secret')
@@ -243,7 +239,6 @@ class EuPagoBaseProvider(BasePaymentProvider):
             return False
             
         try:
-            import base64
             import hmac
             import hashlib
             
@@ -251,62 +246,44 @@ class EuPagoBaseProvider(BasePaymentProvider):
             if self.debug_mode:
                 logger.info(f'Debug mode enabled: Showing detailed webhook validation info')
                 logger.info(f'Webhook payload (first 100 chars): {payload[:100]}... (length: {len(payload)})')
-                logger.info(f'Webhook signature received: {signature[:20]}... (length: {len(signature)})')
+                logger.info(f'Webhook signature received (HEX): {signature[:20]}... (length: {len(signature)})')
                 logger.info(f'Webhook secret length: {len(webhook_secret)}')
             
-            # EXACTLY match EuPago's PHP implementation:
-            # 1. Generate signature with hash_hmac('sha256', $data, $key, true) 
-            # - In Python, hmac.new(...).digest() gives us the raw binary output
-            expected_signature = hmac.new(
+            # Generate HMAC-SHA256 signature 
+            expected_signature_binary = hmac.new(
                 webhook_secret.encode('utf-8'),
-                payload.encode('utf-8'),
+                payload.encode('utf-8'), 
                 hashlib.sha256
             ).digest()
             
-            # 2. Base64 decode the received signature as in PHP's base64_decode($signature)
-            try:
-                # Decode the signature from base64 to match PHP's base64_decode() behavior
-                received_signature = base64.b64decode(signature)
-                if self.debug_mode:
-                    logger.info(f'Decoded signature from base64 successfully, length: {len(received_signature)}')
-            except Exception as e:
-                if self.debug_mode:
-                    logger.warning(f'Failed to decode signature as base64: {e}')
-                # If decoding fails, try to use the raw signature as a fallback
-                received_signature = signature.encode('utf-8')
-                if self.debug_mode:
-                    logger.info(f'Using signature as raw bytes, length: {len(received_signature)}')
+            # Convert to hexadecimal (lowercase) - EuPago uses HEX format
+            expected_signature_hex = expected_signature_binary.hex().lower()
             
-            # 3. Compare using constant-time comparison (equivalent to PHP's hash_equals)
-            is_valid = hmac.compare_digest(expected_signature, received_signature)
+            # Clean received signature - remove any whitespace and convert to lowercase
+            received_signature_hex = signature.strip().lower()
+            
+            # Compare using constant-time comparison
+            is_valid = hmac.compare_digest(expected_signature_hex, received_signature_hex)
             
             # Enhanced debug output for troubleshooting
             if self.debug_mode or not is_valid:
-                # Show different formats to help diagnose the issue
-                expected_b64 = base64.b64encode(expected_signature).decode('utf-8')
-                expected_hex = expected_signature.hex()
+                logger.info(f'Expected signature (HEX): {expected_signature_hex}')
+                logger.info(f'Received signature (HEX): {received_signature_hex}')
                 
-                logger.warning(f'Webhook signature validation failed.')
-                logger.warning(f'Expected signature (raw, len={len(expected_signature)}): {expected_signature}')
-                logger.warning(f'Expected signature (b64, len={len(expected_b64)}): {expected_b64}')
-                logger.warning(f'Expected signature (hex, len={len(expected_hex)}): {expected_hex}')
-                logger.warning(f'Received signature (len={len(received_signature)}): {received_signature}')
-                
-                # Try additional verification methods as fallbacks
-                additional_checks = [
-                    (expected_signature, signature.encode('utf-8'), "raw binary vs raw UTF-8"),
-                    (expected_b64.encode('utf-8'), signature.encode('utf-8'), "base64 vs raw UTF-8"),
-                    (expected_hex.encode('utf-8'), signature.encode('utf-8'), "hex vs raw UTF-8"),
-                ]
-                
-                for expected, received, method in additional_checks:
-                    if hmac.compare_digest(expected, received):
-                        logger.info(f'Signature matched using alternative method: {method}')
-                        if self.debug_mode:
-                            return True  # Accept alternative methods only in debug mode
+                if not is_valid:
+                    logger.warning(f'Webhook signature validation failed - signatures do not match')
+                    
+                    # Try uppercase comparison as fallback
+                    expected_upper = expected_signature_hex.upper()
+                    received_upper = received_signature_hex.upper()
+                    if hmac.compare_digest(expected_upper, received_upper):
+                        logger.info('Signature would match with uppercase normalization')
+                    
+                    # Show lengths for debugging
+                    logger.warning(f'Expected length: {len(expected_signature_hex)}, Received length: {len(received_signature_hex)}')
                 
             if is_valid:
-                logger.info('Webhook signature validation successful')
+                logger.info('Webhook signature validation successful (HEX format)')
             
             return is_valid
             

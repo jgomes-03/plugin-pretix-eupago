@@ -45,7 +45,7 @@ test_signature_raw = hmac.new(
     test_data.encode('utf-8'),
     hashlib.sha256
 ).digest()
-test_signature_base64 = base64.b64encode(test_signature_raw).decode('utf-8')
+test_signature_base64 = "JwyfXA4NLwOd+6qPaP1OGoZXHDjZExGzF0DpQ0xxb4g=" #base64.b64encode(test_signature_raw).decode('utf-8')
 
 print("Testing EuPago signature validation:")
 print(f"Data: {test_data}")
