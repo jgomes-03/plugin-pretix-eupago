@@ -1,0 +1,252 @@
+{% extends "pretixcontrol/base.html" %}
+{% load i18n %}
+{% load bootstrap3 %}
+
+{% block title %}{% trans "EuPago Settings" %}{% endblock %}
+
+{% block content %}
+<h1>{% trans "EuPago Settings" %}</h1>
+<p>{% trans "Configure your EuPago payment provider settings here." %}</p>
+
+<form method="post" action="">
+    {% csrf_token %}
+    
+    <div class="panel panel-default">
+        <div class="panel-heading">
+            <h3 class="panel-title">{% trans "API Configuration" %}</h3>
+        </div>
+        <div class="panel-body">
+            {% bootstrap_field form.eupago_api_key %}
+            {% bootstrap_field form.eupago_client_id %}
+            {% bootstrap_field form.eupago_client_secret %}
+            {% bootstrap_field form.eupago_webhook_secret %}
+            {% bootstrap_field form.eupago_endpoint %}
+        </div>
+    </div>
+    
+    <div class="panel panel-default">
+        <div class="panel-heading">
+            <h3 class="panel-title">{% trans "Payment Method Descriptions" %}</h3>
+        </div>
+        <div class="panel-body">
+            {% bootstrap_field form.eupago_cc_description %}
+            {% bootstrap_field form.eupago_mbway_description %}
+            {% bootstrap_field form.eupago_multibanco_description %}
+            {% bootstrap_field form.eupago_payshop_description %}
+        </div>
+    </div>
+    
+    <div class="form-group submit-group">
+        <button type="submit" class="btn btn-success btn-lg">
+            <i class="fa fa-check"></i> {% trans "Save" %}
+        </button>
+    </div>
+</form>
+
+<!-- Troubleshooting Tools -->
+<div class="panel panel-warning" style="margin-top: 30px;">
+    <div class="panel-heading">
+        <h3 class="panel-title">{% trans "Troubleshooting Tools" %}</h3>
+    </div>
+    <div class="panel-body">
+        <div class="row">
+            <div class="col-md-6">
+                <h4>{% trans "Check Payment Status" %}</h4>
+                <form method="post" action="">
+                    {% csrf_token %}
+                    <div class="form-group">
+                        <label for="payment_id">{% trans "Payment ID" %}</label>
+                        <input type="text" class="form-control" name="payment_id" id="payment_id" placeholder="{% trans "Enter payment ID" %}">
+                    </div>
+                    <button type="submit" name="check_payment_status" class="btn btn-primary">
+                        <i class="fa fa-search"></i> {% trans "Check Status" %}
+                    </button>
+                </form>
+            </div>
+            <div class="col-md-6">
+                <h4>{% trans "Simulate Webhook" %}</h4>
+                <p class="text-muted">{% trans "Use this to manually trigger a webhook if EuPago's webhooks aren't working." %}</p>
+                <form method="post" action="">
+                    {% csrf_token %}
+                    <div class="form-group">
+                        <label for="payment_id_webhook">{% trans "Payment ID" %}</label>
+                        <input type="text" class="form-control" name="payment_id" id="payment_id_webhook" placeholder="{% trans "Enter payment ID" %}">
+                    </div>
+                    <div class="form-group">
+                        <label for="webhook_status">{% trans "Status" %}</label>
+                        <select class="form-control" name="webhook_status" id="webhook_status">
+                            <option value="paid">{% trans "Paid/Success" %}</option>
+                            <option value="failed">{% trans "Failed/Error" %}</option>
+                            <option value="cancelled">{% trans "Cancelled" %}</option>
+                        </select>
+                    </div>
+                    <button type="submit" name="simulate_webhook" class="btn btn-warning">
+                        <i class="fa fa-bolt"></i> {% trans "Simulate Webhook" %}
+                    </button>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Webhook Configuration -->
+<div class="panel panel-info" style="margin-top: 30px;">
+    <div class="panel-heading">
+        <h3 class="panel-title">{% trans "Webhook Configuration" %}</h3>
+    </div>
+    <div class="panel-body">
+        <p>{% trans "Configure this webhook URL in your EuPago backoffice:" %}</p>
+        <div class="input-group">
+            <input type="text" class="form-control" value="{{ request.scheme }}://{{ request.get_host }}{% url 'plugins:eupago:webhook' %}" readonly>
+            <span class="input-group-btn">
+                <button class="btn btn-default" type="button" onclick="copyWebhookUrl()">
+                    <i class="fa fa-copy"></i>
+                </button>
+            </span>
+        </div>
+        <p class="help-block" style="margin-top: 10px;">
+            {% trans "Test URL:" %} 
+            <a href="{{ request.scheme }}://{{ request.get_host }}{% url 'plugins:eupago:test_webhook' %}" target="_blank">
+                {{ request.scheme }}://{{ request.get_host }}{% url 'plugins:eupago:test_webhook' %}
+            </a>
+        </p>
+    </div>
+</div>
+
+<!-- Payment Statistics -->
+{% if recent_stats %}
+<div class="panel panel-info" style="margin-top: 30px;">
+    <div class="panel-heading">
+        <h3 class="panel-title">{% trans "Recent Payment Statistics (Last 7 Days)" %}</h3>
+    </div>
+    <div class="panel-body">
+        <div class="row">
+            <div class="col-md-3">
+                <div class="stat-item">
+                    <div class="stat-number">{{ recent_stats.total_payments }}</div>
+                    <div class="stat-label">{% trans "Total Payments" %}</div>
+                </div>
+            </div>
+            <div class="col-md-3">
+                <div class="stat-item">
+                    <div class="stat-number text-success">{{ recent_stats.confirmed_payments }}</div>
+                    <div class="stat-label">{% trans "Confirmed" %}</div>
+                </div>
+            </div>
+            <div class="col-md-3">
+                <div class="stat-item">
+                    <div class="stat-number text-warning">{{ recent_stats.pending_payments }}</div>
+                    <div class="stat-label">{% trans "Pending" %}</div>
+                </div>
+            </div>
+            <div class="col-md-3">
+                <div class="stat-item">
+                    <div class="stat-number text-danger">{{ recent_stats.failed_payments }}</div>
+                    <div class="stat-label">{% trans "Failed" %}</div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endif %}
+
+<!-- Manual Payment Status Check -->
+<div class="panel panel-warning" style="margin-top: 30px;">
+    <div class="panel-heading">
+        <h3 class="panel-title">{% trans "Manual Payment Status Check" %}</h3>
+    </div>
+    <div class="panel-body">
+        <p class="text-muted">
+            {% trans "Use this tool to manually check the status of a specific EuPago payment. This is useful for troubleshooting payments that might have missed webhook notifications." %}
+        </p>
+        
+        <form method="post" class="form-inline">
+            {% csrf_token %}
+            <div class="form-group">
+                <label for="payment_id" class="sr-only">{% trans "Payment ID" %}</label>
+                <input type="text" 
+                       name="payment_id" 
+                       id="payment_id" 
+                       class="form-control" 
+                       placeholder="{% trans 'Payment ID (e.g., ABC-123-456)' %}"
+                       style="width: 300px;">
+            </div>
+            <button type="submit" 
+                    name="check_payment_status" 
+                    class="btn btn-warning">
+                <i class="fa fa-search"></i>
+                {% trans "Check Payment Status" %}
+            </button>
+        </form>
+        
+        <div class="alert alert-info" style="margin-top: 15px;">
+            <i class="fa fa-info-circle"></i>
+            <strong>{% trans "How to find Payment ID:" %}</strong>
+            <ul style="margin-top: 10px; margin-bottom: 0;">
+                <li>{% trans "Go to Events → [Your Event] → Orders" %}</li>
+                <li>{% trans "Click on the order containing the payment" %}</li>
+                <li>{% trans "Look for 'Payment ID' in the payment details section" %}</li>
+            </ul>
+        </div>
+    </div>
+</div>
+
+<!-- Webhook Information -->
+<div class="panel panel-info" style="margin-top: 30px;">
+    <div class="panel-heading">
+        <h3 class="panel-title">{% trans "Automatic Payment Detection" %}</h3>
+    </div>
+    <div class="panel-body">
+        <p><strong>{% trans "Webhook URLs are automatically configured" %}</strong> - no manual setup required.</p>
+        
+        <p><strong>{% trans "Webhook URL format:" %}</strong></p>
+        <code>https://yourdomain.com/[event-slug]/eupago/webhook/</code>
+        
+        <div style="margin-top: 15px;">
+            <p><strong>{% trans "Automatic Payment Detection Features:" %}</strong></p>
+            <ul>
+                <li>✅ {% trans "Real-time webhook notifications from EuPago" %}</li>
+                <li>✅ {% trans "Automatic payment status updates (pending → confirmed)" %}</li>
+                <li>✅ {% trans "Secure webhook signature validation" %}</li>
+                <li>✅ {% trans "Support for all payment methods (MBWay, Credit Card, Multibanco, PayShop)" %}</li>
+                <li>✅ {% trans "Fallback API status checking for missed webhooks" %}</li>
+            </ul>
+        </div>
+        
+        <div class="alert alert-success" style="margin-top: 15px;">
+            <i class="fa fa-check-circle"></i>
+            <strong>{% trans "How it works:" %}</strong>
+            <p style="margin-top: 5px; margin-bottom: 0;">
+                {% trans "When customers complete payments (MBWay, Credit Card, etc.), EuPago automatically sends notifications to pretix, and payment statuses are updated immediately. No manual intervention needed!" %}
+            </p>
+        </div>
+    </div>
+</div>
+
+<style>
+.stat-item {
+    text-align: center;
+    padding: 15px;
+}
+.stat-number {
+    font-size: 2em;
+    font-weight: bold;
+    line-height: 1;
+}
+.stat-label {
+    font-size: 0.9em;
+    color: #666;
+    margin-top: 5px;
+}
+</style>
+
+<script type="text/javascript">
+    function copyWebhookUrl() {
+        var copyText = document.querySelector(".input-group input");
+        copyText.select();
+        document.execCommand("copy");
+        alert("{% trans 'Webhook URL copied to clipboard!' %}");
+    }
+</script>
+
+{% endblock %}

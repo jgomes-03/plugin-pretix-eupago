@@ -1,0 +1,47 @@
+{% load i18n %}
+{% load money %}
+<div class="panel panel-default">
+    <div class="panel-heading">
+        <h4 class="panel-title">
+            {% trans "Multibanco Payment Reference" %}
+        </h4>
+    </div>
+    <div class="panel-body">
+        <div class="alert alert-info">
+            <p><strong>{% trans "Payment Instructions:" %}</strong></p>
+            <p>{% trans "Use the following reference to pay at any ATM, online banking, or Multibanco terminal:" %}</p>
+            
+            <div class="payment-reference" style="background: #f5f5f5; padding: 15px; margin: 10px 0; border-radius: 5px;">
+                <div class="row">
+                    <div class="col-sm-6">
+                        <strong>{% trans "Entity:" %}</strong><br>
+                        <code id="mb-entity">{{ payment_info.entity|default:"12345" }}</code>
+                    </div>
+                    <div class="col-sm-6">
+                        <strong>{% trans "Reference:" %}</strong><br>
+                        <code id="mb-reference">{{ payment_info.reference|default:"123 456 789" }}</code>
+                    </div>
+                </div>
+                <div class="row" style="margin-top: 10px;">
+                    <div class="col-sm-6">
+                        <strong>{% trans "Amount:" %}</strong><br>
+                        <code id="mb-amount">{{ payment.amount|money:event.currency }}</code>
+                    </div>
+                    <div class="col-sm-6">
+                        <strong>{% trans "Valid until:" %}</strong><br>
+                        <code>{{ payment_info.expires_at|default:"30 days" }}</code>
+                    </div>
+                </div>
+            </div>
+            
+            <p><small>{% trans "This payment reference is valid for 30 days. Your order will be confirmed automatically once payment is received." %}</small></p>
+        </div>
+        
+        {% if provider.test_mode_message %}
+            <div class="alert alert-warning">
+                <i class="fa fa-warning"></i>
+                {{ provider.test_mode_message }}
+            </div>
+        {% endif %}
+    </div>
+</div>

@@ -1,0 +1,88 @@
+{% load i18n %}
+{% load bootstrap3 %}
+
+<div class="panel panel-default eupago-paybylink-form">
+    <div class="panel-heading">
+        <h4 class="panel-title">
+            <i class="fa fa-link"></i>
+            {% trans "PayByLink" %}
+            <small class="text-muted">{% trans "Powered by EuPago" %}</small>
+        </h4>
+    </div>
+    <div class="panel-body">
+        {% if provider.settings.paybylink_description %}
+        <p class="help-block">{{ provider.settings.paybylink_description }}</p>
+        {% endif %}
+        
+        <div class="alert alert-info">
+            <i class="fa fa-info-circle"></i>
+            <strong>{% trans "Easy Payment Process:" %}</strong>
+            <ol style="margin-bottom: 0; margin-top: 10px;">
+                <li>{% trans "Click 'Continue' to proceed to payment" %}</li>
+                <li>{% trans "You will be redirected to the payment page" %}</li>  
+                <li>{% trans "Select your preferred payment method" %}</li>
+                <li>{% trans "Complete payment and return to receive your tickets" %}</li>
+            </ol>
+        </div>
+        
+        <div class="row">
+            <div class="col-md-6">
+                <h5>{% trans "Security Features" %}</h5>
+                <ul class="fa-ul">
+                    <li><i class="fa-li fa fa-shield text-success"></i>{% trans "256-bit SSL encryption" %}</li>
+                    <li><i class="fa-li fa fa-lock text-success"></i>{% trans "Secure payment processing" %}</li>
+                    <li><i class="fa-li fa fa-check text-success"></i>{% trans "PCI DSS compliant" %}</li>
+                </ul>
+            </div>
+            <div class="col-md-6">
+                <h5>{% trans "Accepted Payment Methods" %}</h5>
+                <div class="accepted-methods">
+                    <i class="fa fa-cc-visa fa-2x text-primary"></i>
+                    <i class="fa fa-cc-mastercard fa-2x text-warning"></i>
+                    <i class="fa fa-credit-card fa-2x text-info"></i>
+                    <i class="fa fa-money fa-2x text-success"></i>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<style>
+.eupago-paybylink-form {
+    border: 2px solid #e7f3ff;
+}
+
+.eupago-paybylink-form .panel-heading {
+    background: linear-gradient(135deg, #4a148c, #3b1c4a);
+    color: white;
+    border-bottom: none;
+}
+
+.accepted-methods {
+    text-align: center;
+    padding: 10px 0;
+}
+
+.accepted-methods i {
+    margin: 0 5px;
+    opacity: 0.8;
+    transition: opacity 0.3s;
+}
+
+.accepted-methods i:hover {
+    opacity: 1;
+}
+
+.alert-info {
+    border-left: 4px solid #4a148c;
+    background-color: #f3e5f5;
+}
+
+.fa-ul {
+    margin-left: 0;
+}
+
+.fa-li {
+    left: -1.5em;
+}
+</style>

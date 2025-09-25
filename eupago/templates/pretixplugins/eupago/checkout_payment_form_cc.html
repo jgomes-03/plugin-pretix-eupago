@@ -1,0 +1,95 @@
+{% load i18n %}
+{% load bootstrap3 %}
+
+<div class="panel panel-default eupago-cc-form">
+    <div class="panel-heading">
+        <h4 class="panel-title">
+            <i class="fa fa-credit-card"></i>
+            {% trans "Credit Card Payment" %}
+            <small class="text-muted">{% trans "Powered by EuPago" %}</small>
+        </h4>
+    </div>
+    <div class="panel-body">
+        {% if provider.settings.cc_description %}
+        <p class="help-block">{{ provider.settings.cc_description }}</p>
+        {% endif %}
+        
+        {% bootstrap_form form layout='horizontal' %}
+        
+        <div class="alert alert-info">
+            <i class="fa fa-info-circle"></i>
+            <strong>{% trans "Secure Payment Process:" %}</strong>
+            <ol style="margin-bottom: 0; margin-top: 10px;">
+                <li>{% trans "Click 'Continue' to proceed to payment" %}</li>
+                <li>{% trans "You will be redirected to EuPago's secure payment page" %}</li>  
+                <li>{% trans "Enter your card details on the secure form" %}</li>
+                <li>{% trans "Complete payment and return to receive your tickets" %}</li>
+            </ol>
+        </div>
+        
+        <div class="row">
+            <div class="col-md-6">
+                <h5>{% trans "Security Features" %}</h5>
+                <ul class="fa-ul">
+                    <li><i class="fa-li fa fa-shield text-success"></i>{% trans "256-bit SSL encryption" %}</li>
+                    <li><i class="fa-li fa fa-lock text-success"></i>{% trans "3D Secure technology" %}</li>
+                    <li><i class="fa-li fa fa-check text-success"></i>{% trans "PCI DSS compliant" %}</li>
+                </ul>
+            </div>
+            <div class="col-md-6">
+                <h5>{% trans "Accepted Cards" %}</h5>
+                <div class="accepted-cards">
+                    <i class="fa fa-cc-visa fa-2x text-primary"></i>
+                    <i class="fa fa-cc-mastercard fa-2x text-warning"></i>
+                    <i class="fa fa-credit-card fa-2x text-info"></i>
+                </div>
+            </div>
+        </div>
+        
+        <div class="alert alert-warning">
+            <i class="fa fa-exclamation-triangle"></i>
+            <strong>{% trans "Important:" %}</strong>
+            {% trans "Maximum amount per transaction is €3,999. All payments are processed in Euro (EUR)." %}
+        </div>
+    </div>
+</div>
+
+<style>
+.eupago-cc-form {
+    border: 2px solid #e7f3ff;
+}
+
+.eupago-cc-form .panel-heading {
+    background: linear-gradient(135deg, #17a2b8, #3b1c4a);
+    color: white;
+    border-bottom: none;
+}
+
+.accepted-cards {
+    text-align: center;
+    padding: 10px 0;
+}
+
+.accepted-cards i {
+    margin: 0 5px;
+    opacity: 0.8;
+    transition: opacity 0.3s;
+}
+
+.accepted-cards i:hover {
+    opacity: 1;
+}
+
+.alert-info {
+    border-left: 4px solid #17a2b8;
+    background-color: #e7f3ff;
+}
+
+.fa-ul {
+    margin-left: 0;
+}
+
+.fa-li {
+    left: -1.5em;
+}
+</style>

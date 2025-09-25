@@ -1,0 +1,46 @@
+{% load i18n %}
+{% load bootstrap3 %}
+
+<div class="panel panel-default eupago-paybylink-confirm">
+    <div class="panel-heading">
+        <h4 class="panel-title">
+            <i class="fa fa-link"></i>
+            {% trans "PayByLink" %}
+            <small class="text-muted">{% trans "Powered by EuPago" %}</small>
+        </h4>
+    </div>
+    <div class="panel-body">
+        <p>
+            {% blocktrans trimmed %}
+            You will be redirected to the payment page to complete your payment. 
+            After successful payment, you will be returned to this site.
+            {% endblocktrans %}
+        </p>
+        
+        <div class="alert alert-info">
+            <i class="fa fa-info-circle"></i>
+            {% blocktrans trimmed %}
+            Your order will be confirmed as soon as we receive confirmation of your payment.
+            {% endblocktrans %}
+        </div>
+        
+        <p>{% trans "Amount" %}: <strong>{{ total|floatformat:2 }} €</strong></p>
+    </div>
+</div>
+
+<style>
+.eupago-paybylink-confirm {
+    border: 2px solid #e7f3ff;
+}
+
+.eupago-paybylink-confirm .panel-heading {
+    background: linear-gradient(135deg, #4a148c, #3b1c4a);
+    color: white;
+    border-bottom: none;
+}
+
+.alert-info {
+    border-left: 4px solid #4a148c;
+    background-color: #f3e5f5;
+}
+</style>

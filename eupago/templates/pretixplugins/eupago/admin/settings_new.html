@@ -1,0 +1,175 @@
+{% extends "pretixcontrol/base.html" %}
+{% load i18n %}
+
+{% block title %}{{ title }}{% endblock %}
+
+{% block content %}
+<h1>{{ title }}</h1>
+
+<div class="panel panel-default">
+    <div class="panel-heading">
+        <h3 class="panel-title">{% trans "EuPago Configuration" %}</h3>
+    </div>
+    <div class="panel-body">
+        <form method="post" class="form-horizontal">
+            {% csrf_token %}
+            
+            {% for field in form %}
+                <div class="form-group{% if field.errors %} has-error{% endif %}">
+                    <label for="{{ field.id_for_label }}" class="col-md-3 control-label">
+                        {{ field.label }}
+                    </label>
+                    <div class="col-md-6">
+                        {{ field }}
+                        {% if field.help_text %}
+                            <p class="help-block">{{ field.help_text }}</p>
+                        {% endif %}
+                        {% if field.errors %}
+                            <div class="help-block">
+                                {{ field.errors.0 }}
+                            </div>
+                        {% endif %}
+                    </div>
+                </div>
+            {% endfor %}
+            
+            <div class="form-group">
+                <div class="col-md-offset-3 col-md-6">
+                    <button type="submit" class="btn btn-primary">
+                        {% trans "Save" %}
+                    </button>
+                </div>
+            </div>
+        </form>
+    </div>
+</div>
+
+<!-- Payment Statistics -->
+{% if recent_stats %}
+<div class="panel panel-info">
+    <div class="panel-heading">
+        <h3 class="panel-title">{% trans "Recent Payment Statistics (Last 7 Days)" %}</h3>
+    </div>
+    <div class="panel-body">
+        <div class="row">
+            <div class="col-md-3">
+                <div class="stat-item">
+                    <div class="stat-number">{{ recent_stats.total_payments }}</div>
+                    <div class="stat-label">{% trans "Total Payments" %}</div>
+                </div>
+            </div>
+            <div class="col-md-3">
+                <div class="stat-item">
+                    <div class="stat-number text-success">{{ recent_stats.confirmed_payments }}</div>
+                    <div class="stat-label">{% trans "Confirmed" %}</div>
+                </div>
+            </div>
+            <div class="col-md-3">
+                <div class="stat-item">
+                    <div class="stat-number text-warning">{{ recent_stats.pending_payments }}</div>
+                    <div class="stat-label">{% trans "Pending" %}</div>
+                </div>
+            </div>
+            <div class="col-md-3">
+                <div class="stat-item">
+                    <div class="stat-number text-danger">{{ recent_stats.failed_payments }}</div>
+                    <div class="stat-label">{% trans "Failed" %}</div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endif %}
+
+<!-- Manual Payment Status Check -->
+<div class="panel panel-warning">
+    <div class="panel-heading">
+        <h3 class="panel-title">{% trans "Manual Payment Status Check" %}</h3>
+    </div>
+    <div class="panel-body">
+        <p class="text-muted">
+            {% trans "Use this tool to manually check the status of a specific EuPago payment. This is useful for troubleshooting payments that might have missed webhook notifications." %}
+        </p>
+        
+        <form method="post" class="form-inline">
+            {% csrf_token %}
+            <div class="form-group">
+                <label for="payment_id" class="sr-only">{% trans "Payment ID" %}</label>
+                <input type="text" 
+                       name="payment_id" 
+                       id="payment_id" 
+                       class="form-control" 
+                       placeholder="{% trans 'Payment ID (e.g., ABC-123-456)' %}"
+                       style="width: 300px;">
+            </div>
+            <button type="submit" 
+                    name="check_payment_status" 
+                    class="btn btn-warning">
+                <i class="fa fa-search"></i>
+                {% trans "Check Payment Status" %}
+            </button>
+        </form>
+        
+        <div class="alert alert-info" style="margin-top: 15px;">
+            <i class="fa fa-info-circle"></i>
+            <strong>{% trans "How to find Payment ID:" %}</strong>
+            <ul style="margin-top: 10px; margin-bottom: 0;">
+                <li>{% trans "Go to Events → [Your Event] → Orders" %}</li>
+                <li>{% trans "Click on the order containing the payment" %}</li>
+                <li>{% trans "Look for 'Payment ID' in the payment details section" %}</li>
+            </ul>
+        </div>
+    </div>
+</div>
+
+<!-- Webhook Information -->
+<div class="panel panel-info">
+    <div class="panel-heading">
+        <h3 class="panel-title">{% trans "Webhook Information" %}</h3>
+    </div>
+    <div class="panel-body">
+        <p><strong>{% trans "Webhook URLs are automatically configured" %}</strong> - no manual setup required.</p>
+        
+        <p><strong>{% trans "Webhook URL format:" %}</strong></p>
+        <code>https://yourdomain.com/[event-slug]/eupago/webhook/</code>
+        
+        <div style="margin-top: 15px;">
+            <p><strong>{% trans "Automatic Payment Detection Features:" %}</strong></p>
+            <ul>
+                <li>✅ {% trans "Real-time webhook notifications from EuPago" %}</li>
+                <li>✅ {% trans "Automatic payment status updates (pending → confirmed)" %}</li>
+                <li>✅ {% trans "Secure webhook signature validation" %}</li>
+                <li>✅ {% trans "Support for all payment methods (MBWay, Credit Card, Multibanco, PayShop)" %}</li>
+                <li>✅ {% trans "Fallback API status checking for missed webhooks" %}</li>
+            </ul>
+        </div>
+        
+        <div style="margin-top: 15px;">
+            <a href="https://github.com/your-repo/AUTOMATIC_PAYMENT_DETECTION.md" 
+               class="btn btn-info btn-sm" 
+               target="_blank">
+                <i class="fa fa-book"></i>
+                {% trans "View Complete Documentation" %}
+            </a>
+        </div>
+    </div>
+</div>
+
+<style>
+.stat-item {
+    text-align: center;
+    padding: 15px;
+}
+.stat-number {
+    font-size: 2em;
+    font-weight: bold;
+    line-height: 1;
+}
+.stat-label {
+    font-size: 0.9em;
+    color: #666;
+    margin-top: 5px;
+}
+</style>
+
+{% endblock %}

@@ -1,0 +1,92 @@
+# Portuguese translations for EuPago v2 plugin
+# Copyright (C) 2024
+# This file is distributed under the same license as the EuPago v2 package.
+#
+msgid ""
+msgstr ""
+"Project-Id-Version: \n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2024-01-01 12:00+0000\n"
+"PO-Revision-Date: 2024-01-01 12:00+0000\n"
+"Language: pt\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=UTF-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+
+msgid "EuPago v2"
+msgstr "EuPago v2"
+
+msgid "Accept payments via EuPago (Credit Card, MBWay, Multibanco, PayShop)"
+msgstr "Aceitar pagamentos via EuPago (Cartão de Crédito, MBWay, Multibanco, PayShop)"
+
+msgid "API Key"
+msgstr "Chave API"
+
+msgid "Your EuPago API key"
+msgstr "A sua chave API do EuPago"
+
+msgid "Client ID"
+msgstr "ID do Cliente"
+
+msgid "Your EuPago Client ID"
+msgstr "O seu ID de Cliente do EuPago"
+
+msgid "Client Secret"
+msgstr "Segredo do Cliente"
+
+msgid "Your EuPago Client Secret"
+msgstr "O seu Segredo de Cliente do EuPago"
+
+msgid "Webhook Secret"
+msgstr "Segredo do Webhook"
+
+msgid "Secret key for webhook validation"
+msgstr "Chave secreta para validação de webhook"
+
+msgid "Environment"
+msgstr "Ambiente"
+
+msgid "Sandbox (Testing)"
+msgstr "Sandbox (Testes)"
+
+msgid "Live (Production)"
+msgstr "Produção"
+
+msgid "Use sandbox for testing, live for production"
+msgstr "Use sandbox para testes, produção para ambiente real"
+
+msgid "Credit Card (EuPago v2)"
+msgstr "Cartão de Crédito (EuPago v2)"
+
+msgid "MBWay (EuPago v2)"
+msgstr "MBWay (EuPago v2)"
+
+msgid "Multibanco (EuPago v2)"
+msgstr "Multibanco (EuPago v2)"
+
+msgid "PayShop (EuPago v2)"
+msgstr "PayShop (EuPago v2)"
+
+msgid "Mobile phone number"
+msgstr "Número de telemóvel"
+
+msgid "Enter your mobile phone number for MBWay payment"
+msgstr "Introduza o seu número de telemóvel para pagamento MBWay"
+
+msgid "Payment description"
+msgstr "Descrição do pagamento"
+
+msgid "This will be displayed to customers during checkout"
+msgstr "Isto será mostrado aos clientes durante o checkout"
+
+msgid "Pay securely with your credit card"
+msgstr "Pague de forma segura com o seu cartão de crédito"
+
+msgid "Pay with MBWay using your mobile phone"
+msgstr "Pague com MBWay usando o seu telemóvel"
+
+msgid "Pay via bank transfer using Multibanco reference"
+msgstr "Pague por transferência bancária usando referência Multibanco"
+
+msgid "Pay in cash at any PayShop location"
+msgstr "Pague em dinheiro em qualquer loja PayShop"

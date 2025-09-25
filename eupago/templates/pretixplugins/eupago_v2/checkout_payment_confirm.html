@@ -1,0 +1,26 @@
+{% load i18n %}
+<div class="panel panel-default">
+    <div class="panel-heading">
+        <h4 class="panel-title">
+            {{ provider.verbose_name }}
+        </h4>
+    </div>
+    <div class="panel-body">
+        {% if provider.method == 'creditcard' %}
+            <p>{% trans "You will be redirected to a secure payment page to enter your credit card details." %}</p>
+        {% elif provider.method == 'mbway' %}
+            <p>{% trans "You will receive a notification on your mobile phone to complete the payment." %}</p>
+        {% elif provider.method == 'multibanco' %}
+            <p>{% trans "You will receive payment instructions with reference details." %}</p>
+        {% elif provider.method == 'payshop' %}
+            <p>{% trans "You will receive a payment reference to pay in cash at any PayShop location." %}</p>
+        {% endif %}
+        
+        {% if provider.test_mode_message %}
+            <div class="alert alert-warning">
+                <i class="fa fa-warning"></i>
+                {{ provider.test_mode_message }}
+            </div>
+        {% endif %}
+    </div>
+</div>

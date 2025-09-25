@@ -1,0 +1,100 @@
+/* EuPago v2 Payment Provider Styles */
+
+.payment-reference {
+    font-family: 'Monaco', 'Menlo', 'Ubuntu Mono', monospace;
+    background: #f8f9fa;
+    border: 1px solid #dee2e6;
+    border-radius: 5px;
+    padding: 15px;
+    margin: 15px 0;
+}
+
+.payment-reference code {
+    font-size: 16px;
+    font-weight: bold;
+    background: transparent;
+    color: #495057;
+    border: none;
+    padding: 0;
+}
+
+.payment-reference .row {
+    margin-bottom: 10px;
+}
+
+.payment-reference .row:last-child {
+    margin-bottom: 0;
+}
+
+/* MBWay specific styles */
+.mbway-phone-input {
+    font-size: 16px;
+}
+
+/* Multibanco specific styles */
+#mb-entity, #mb-reference, #mb-amount {
+    font-size: 18px;
+    letter-spacing: 1px;
+}
+
+/* PayShop specific styles */
+#payshop-reference {
+    font-size: 20px;
+    letter-spacing: 2px;
+    font-weight: bold;
+}
+
+#payshop-amount {
+    font-size: 18px;
+    color: #28a745;
+}
+
+/* Payment method icons */
+.payment-method-icon {
+    width: 32px;
+    height: 32px;
+    margin-right: 10px;
+    vertical-align: middle;
+}
+
+/* Loading states */
+.payment-loading {
+    text-align: center;
+    padding: 20px;
+}
+
+.payment-loading .fa-spin {
+    font-size: 2em;
+    color: #007bff;
+}
+
+/* Success/Error states */
+.payment-success {
+    color: #155724;
+    background-color: #d4edda;
+    border-color: #c3e6cb;
+}
+
+.payment-error {
+    color: #721c24;
+    background-color: #f8d7da;
+    border-color: #f5c6cb;
+}
+
+/* Responsive adjustments */
+@media (max-width: 768px) {
+    .payment-reference {
+        padding: 10px;
+    }
+    
+    .payment-reference code {
+        font-size: 14px;
+        display: block;
+        margin-top: 5px;
+    }
+    
+    #payshop-reference {
+        font-size: 16px;
+        letter-spacing: 1px;
+    }
+}

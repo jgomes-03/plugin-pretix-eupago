@@ -1,0 +1,67 @@
+{% extends "pretixpresale/event/base.html" %}
+{% load i18n %}
+{% load static %}
+
+{% block title %}{% trans "Credit Card Payment" %}{% endblock %}
+
+{% block content %}
+<div class="panel panel-primary">
+    <div class="panel-heading">
+        <h3 class="panel-title">
+            <i class="fa fa-credit-card"></i>
+            {% trans "Credit Card Payment" %}
+        </h3>
+    </div>
+    <div class="panel-body">
+        <div class="alert alert-info">
+            <i class="fa fa-info-circle"></i>
+            <strong>{% trans "Secure Payment" %}</strong><br>
+            {% trans "You will be redirected to EuPago's secure payment page to complete your credit card payment." %}
+        </div>
+        
+        <div class="row">
+            <div class="col-md-6">
+                <h4>{% trans "Payment Details" %}</h4>
+                <dl class="dl-horizontal">
+                    <dt>{% trans "Amount:" %}</dt>
+                    <dd><strong class="text-success">€{{ total|floatformat:2 }}</strong></dd>
+                    
+                    <dt>{% trans "Event:" %}</dt>
+                    <dd>{{ event.name }}</dd>
+                    
+                    <dt>{% trans "Payment Method:" %}</dt>
+                    <dd><i class="fa fa-credit-card"></i> {% trans "Credit Card" %}</dd>
+                    
+                    {% if form_data.cc_holder %}
+                    <dt>{% trans "Cardholder:" %}</dt>
+                    <dd>{{ form_data.cc_holder }}</dd>
+                    {% endif %}
+                </dl>
+            </div>
+            
+            <div class="col-md-6">
+                <h4>{% trans "Security Information" %}</h4>
+                <ul class="fa-ul">
+                    <li><i class="fa-li fa fa-shield"></i>{% trans "256-bit SSL encryption" %}</li>
+                    <li><i class="fa-li fa fa-lock"></i>{% trans "3D Secure technology supported" %}</li>
+                    <li><i class="fa-li fa fa-check"></i>{% trans "PCI DSS compliant payment processing" %}</li>
+                </ul>
+            </div>
+        </div>
+        
+        <div class="alert alert-warning">
+            <i class="fa fa-exclamation-triangle"></i>
+            <strong>{% trans "Important:" %}</strong>
+            {% trans "Maximum amount per transaction is €3,999. The payment will be processed in Euro (EUR)." %}
+        </div>
+        
+        <div class="row">
+            <div class="col-md-12 text-center">
+                <p class="help-block">
+                    {% trans "By clicking the button below, you will be redirected to EuPago's secure payment page where you can safely enter your credit card details." %}
+                </p>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

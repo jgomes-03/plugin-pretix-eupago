@@ -1,0 +1,24 @@
+{% load i18n %}
+{% load money %}
+{% trans "Payment pending for order" %} {{ order.code }}
+
+{% if payment.provider == 'eupago_mbway' %}
+{% trans "Your MBWay payment is being processed. You should receive a notification on your mobile phone shortly." %}
+{% elif payment.provider == 'eupago_multibanco' %}
+{% trans "Please use the following details to complete your Multibanco payment:" %}
+
+{% trans "Entity:" %} {{ payment.info_data.entity|default:"12345" }}
+{% trans "Reference:" %} {{ payment.info_data.reference|default:"123 456 789" }}
+{% trans "Amount:" %} {{ payment.amount|money:order.event.currency }}
+
+{% elif payment.provider == 'eupago_payshop' %}
+{% trans "Please use the following reference to pay at any PayShop location:" %}
+
+{% trans "Reference:" %} {{ payment.info_data.reference|default:"123456789" }}
+{% trans "Amount:" %} {{ payment.amount|money:order.event.currency }}
+
+{% elif payment.provider == 'eupago_cc' %}
+{% trans "Your credit card payment is being processed. You will receive confirmation once the payment is complete." %}
+{% endif %}
+
+{% trans "Your order will be confirmed automatically once payment is received." %}
