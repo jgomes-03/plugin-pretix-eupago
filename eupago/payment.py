@@ -210,7 +210,9 @@ class EuPagoBaseProvider(BasePaymentProvider):
             return False
             
         try:
-            # Generate expected signature according to EuPago docs - raw binary output
+            # Generate expected signature according to EuPago docs
+            # Their PHP code uses: hash_hmac('sha256', $data, $key, true)
+            # The 'true' parameter returns raw binary data instead of hex string
             expected_signature = hmac.new(
                 webhook_secret.encode('utf-8'),
                 payload.encode('utf-8'),
@@ -218,10 +220,12 @@ class EuPagoBaseProvider(BasePaymentProvider):
             ).digest()  # Get raw bytes instead of hexdigest
             
             # Decode the base64 signature from the header to raw bytes
+            # In EuPago's PHP code: base64_decode($signature)
             import base64
             received_signature = base64.b64decode(signature)
             
             # Compare signatures using constant-time comparison to prevent timing attacks
+            # In EuPago's PHP code: hash_equals($generatedSignature, base64_decode($signature))
             is_valid = hmac.compare_digest(expected_signature, received_signature)
             
             if not is_valid:

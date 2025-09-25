@@ -1,6 +1,9 @@
 from django.urls import include, re_path, path
 from django.http import HttpResponse
-from .views import EuPagoReturnView, EuPagoMBWayWaitView, webhook, EuPagoSettingsView
+from .views import (
+    EuPagoReturnView, EuPagoMBWayWaitView, webhook, EuPagoSettingsView,
+    debug_webhook_secret
+)
 
 event_patterns = [
     re_path(r'^eupago/', include([
@@ -41,4 +44,11 @@ urlpatterns = [
         lambda request: HttpResponse('Webhook test endpoint is working!', status=200),
         name='test_webhook'
     ),
+    path('webhook/', webhook, name='webhook'),
+    path('return/<slug:order>/<str:hash>/<int:payment>/', EuPagoReturnView.as_view(), name='return'),
+    path('mbway_wait/<slug:order>/<str:hash>/<int:payment>/', EuPagoMBWayWaitView.as_view(), name='mbway_wait'),
+    path('settings/<slug:organizer>/', EuPagoSettingsView.as_view(), name='settings'),
+    
+    # Debug endpoint - REMOVE IN PRODUCTION!
+    path('debug_webhook_secret/', debug_webhook_secret, name='debug_webhook_secret'),
 ]
