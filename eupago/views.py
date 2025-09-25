@@ -313,7 +313,9 @@ def webhook(request, *args, **kwargs):
                 if webhook_signature:
                     logger.info(f'Webhook signature provided in X-Signature header: {webhook_signature[:10]}... (length: {len(webhook_signature)})')
                 else:
-                    logger.info('No webhook signature provided in X-Signature header')                # Try to parse as JSON first (Webhooks 2.0)
+                    logger.info('No webhook signature provided in X-Signature header')
+                
+                # Try to parse as JSON first (Webhooks 2.0)
                     if event_body and event_body.startswith('{'):
                         try:
                             event_data = json.loads(event_body)
