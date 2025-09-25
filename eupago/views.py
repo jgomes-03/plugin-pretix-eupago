@@ -1,5 +1,6 @@
 import json
 import logging
+import os
 from django.http import Http404, HttpResponse, HttpResponseBadRequest
 from django.shortcuts import get_object_or_404, redirect
 from django.views import View
@@ -316,17 +317,17 @@ def webhook(request, *args, **kwargs):
                     logger.info('No webhook signature provided in X-Signature header')
                 
                 # Try to parse as JSON first (Webhooks 2.0)
-                    if event_body and event_body.startswith('{'):
-                        try:
-                            event_data = json.loads(event_body)
-                            logger.info(f'Parsed webhook data: {event_data}')
-                            return _handle_webhook_v2(request, event_data, event_body)
-                        except json.JSONDecodeError as e:
-                            logger.warning(f'Failed to parse JSON: {e}')
-                    
-                    # Not JSON, might be Webhooks 1.0 format (URL params or form data)
-                    logger.info('Webhook body is not JSON, checking for Webhooks 1.0 format')
-                    return _handle_webhook_v1(request)
+                if event_body and event_body.startswith('{'):
+                    try:
+                        event_data = json.loads(event_body)
+                        logger.info(f'Parsed webhook data: {event_data}')
+                        return _handle_webhook_v2(request, event_data, event_body)
+                    except json.JSONDecodeError as e:
+                        logger.warning(f'Failed to parse JSON: {e}')
+                
+                # Not JSON, might be Webhooks 1.0 format (URL params or form data)
+                logger.info('Webhook body is not JSON, checking for Webhooks 1.0 format')
+                return _handle_webhook_v1(request)
             except UnicodeDecodeError as e:
                 logger.error(f'Webhook body decode error: {e}')
                 return HttpResponseBadRequest('Invalid body encoding')
@@ -891,6 +892,10 @@ class EuPagoSettingsView(OrganizerDetailViewMixin, OrganizerPermissionRequiredMi
             # Find the payment using the helper function
             payment = _find_payment_by_identifiers(payment_id, payment_id)
             
+            if not payment:
+                messages.error(self.request, _('Payment not found.'))
+                return redirect(self.get_success_url())
+                
             # Make sure the payment belongs to this organizer
             if payment and payment.order.event.organizer != self.request.organizer:
                 payment = None
