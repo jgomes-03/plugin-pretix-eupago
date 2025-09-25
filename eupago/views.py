@@ -434,8 +434,16 @@ def _handle_webhook_v2(request, event_data, event_body):
         return HttpResponseBadRequest('Missing transaction data')
     
     # Find payment by identifier
-    identifier = transaction_data.get('identifier') or transaction_data.get('identificador')
-    reference = transaction_data.get('reference') or transaction_data.get('referencia')
+    # Check if transaction data is nested within a 'transaction' field
+    if 'transaction' in transaction_data and isinstance(transaction_data['transaction'], dict):
+        transaction_nested = transaction_data['transaction']
+        identifier = transaction_nested.get('identifier') or transaction_nested.get('identificador')
+        reference = transaction_nested.get('reference') or transaction_nested.get('referencia')
+        logger.info(f'Found nested transaction data: identifier={identifier}, reference={reference}')
+    else:
+        # Original approach - direct fields
+        identifier = transaction_data.get('identifier') or transaction_data.get('identificador')
+        reference = transaction_data.get('reference') or transaction_data.get('referencia')
     
     if not identifier and not reference:
         logger.warning('Missing identifier and reference in webhook')
