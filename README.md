@@ -116,11 +116,13 @@ Ou utilizando o script de instalação:
 ## Configuração
 
 ### Configurações Obrigatórias
-- **API Key** - A sua chave de API EuPago
+- **API Key** - Chave da API fornecida pela EuPago
 - **Endpoint** - Escolha sandbox (teste) ou live (produção)
 
 ### Configurações Opcionais
 - **Webhook Secret** - Para segurança melhorada (recomendado para produção)
+  - O segredo deve ser configurado nas configurações do organizador como `payment_eupago_webhook_secret`
+  - Alternativamente, pode ser definido como variável de ambiente `EUPAGO_WEBHOOK_SECRET`
 - **Client ID/Secret** - Se estiver a utilizar autenticação OAuth
 
 ### Configuração de Webhook
@@ -242,3 +244,39 @@ Configure cron jobs para verificar automaticamente pagamentos pendentes:
 ## Licença
 
 Licenciado sob licença proprietária. Ver arquivo LICENSE para detalhes.
+
+## Gestão de Versões
+
+A versão do plugin é definida uma única vez no ficheiro `eupago/apps.py` na variável `__version__`. Quando atualizar a versão, execute o script `update_version.ps1` (Windows) ou `update_version.sh` (Linux/Mac) para sincronizar a versão em todos os ficheiros do projeto.
+
+```bash
+# Linux/Mac
+./update_version.sh
+
+# Windows
+.\update_version.ps1
+```
+
+Este script atualiza a versão no README.md e outros ficheiros relevantes, e opcionalmente cria uma tag git com a nova versão.
+
+## Setting up Webhook Security
+
+For secure webhook processing, you should configure the webhook secret key. This can be done in two ways:
+
+1. **Through Pretix Organizer Settings (Recommended)**
+   - Go to Organizer Settings in the Pretix admin panel
+   - Navigate to the EuPago plugin settings
+   - Enter your webhook secret in the "Webhook Secret" field
+   - Save your settings
+
+2. **Using Environment Variables**
+   - Set the environment variable `EUPAGO_WEBHOOK_SECRET` in your server configuration:
+   ```bash
+   export EUPAGO_WEBHOOK_SECRET='your_secret_here'
+   ```
+
+The webhook secret is used to:
+- Validate webhook signature authentication
+- Decrypt encrypted webhook data (when using EuPago Webhooks 2.0)
+
+For maximum security, use a strong random string as your webhook secret. You should set the same secret in both your Pretix configuration and your EuPago account.

@@ -1,5 +1,7 @@
 # EuPago v2 Plugin Configuration
 
+# Pretix stores payment provider settings with a 'payment_' prefix before the provider identifier
+# e.g., 'payment_eupago_webhook_secret' instead of just 'eupago_webhook_secret'
 DEFAULT_SETTINGS = {
     'api_key': '',
     'client_id': '',

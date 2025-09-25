@@ -344,22 +344,46 @@ def _handle_webhook_v2(request, event_data, event_body):
         # Try to get webhook secret from settings
         webhook_secret = None
         try:
-            # First try environment variable (simplest and most reliable method)
-            import os
-            webhook_secret = os.environ.get('EUPAGO_WEBHOOK_SECRET', '')
-            if webhook_secret:
-                logger.info("Using webhook secret from environment variable")
+            # First try to get from organizer settings
+            from pretix.base.models import Organizer
+            from django_scopes import scopes_disabled
+            
+            with scopes_disabled():
+                # Get all organizers that might have this setting
+                organizers = Organizer.objects.all()
+                for organizer in organizers:
+                    try:
+                        # Check if this organizer has the webhook secret configured
+                        # First try with payment_ prefix (as used in test case)
+                        potential_secret = organizer.settings.get('payment_eupago_webhook_secret', '')
+                        if not potential_secret:
+                            # Try without prefix as a fallback
+                            potential_secret = organizer.settings.get('eupago_webhook_secret', '')
+                            
+                        if potential_secret:
+                            webhook_secret = potential_secret
+                            logger.info(f"Using webhook secret from organizer '{organizer.slug}' settings")
+                            break
+                    except Exception as e:
+                        logger.debug(f"Error accessing settings for organizer {organizer.slug}: {e}")
                 
-            # If no environment variable, try to read from a local file
+            # If not found in organizer settings, try environment variable
             if not webhook_secret:
-                try:
-                    secret_file = os.path.join(os.path.dirname(__file__), 'webhook_secret.txt')
-                    if os.path.exists(secret_file):
-                        with open(secret_file, 'r') as f:
-                            webhook_secret = f.read().strip()
-                            logger.info("Using webhook secret from webhook_secret.txt file")
-                except Exception as e:
-                    logger.debug(f"Could not read webhook secret file: {e}")
+                import os
+                webhook_secret = os.environ.get('EUPAGO_WEBHOOK_SECRET', '')
+                if webhook_secret:
+                    logger.info("Using webhook secret from environment variable")
+                
+                # If no environment variable, try to read from a local file
+                if not webhook_secret:
+                    try:
+                        secret_file = os.path.join(os.path.dirname(__file__), 'webhook_secret.txt')
+                        if os.path.exists(secret_file):
+                            with open(secret_file, 'r') as f:
+                                webhook_secret = f.read().strip()
+                                logger.info("Using webhook secret from webhook_secret.txt file")
+                    except Exception as e:
+                        logger.debug(f"Could not read webhook secret file: {e}")
         except Exception as e:
             logger.warning(f'Could not get webhook_secret: {e}')
         
@@ -964,25 +988,52 @@ def _decrypt_webhook_data(encrypted_data, iv=None, webhook_secret=None):
         
         # Get webhook secret from settings if not provided
         if not webhook_secret:
-            # First try environment variable (simplest and most reliable method)
-            import os
-            webhook_secret = os.environ.get('EUPAGO_WEBHOOK_SECRET', '')
-            if webhook_secret:
-                logger.info("Using webhook secret from environment variable")
+            try:
+                # First try to get from organizer settings
+                from pretix.base.models import Organizer
+                from django_scopes import scopes_disabled
                 
-            # If no environment variable, try to read from a local file
+                with scopes_disabled():
+                    # Get all organizers that might have this setting
+                    organizers = Organizer.objects.all()
+                    for organizer in organizers:
+                        try:
+                            # Check if this organizer has the webhook secret configured
+                            # First try with payment_ prefix (as used in test case)
+                            potential_secret = organizer.settings.get('payment_eupago_webhook_secret', '')
+                            if not potential_secret:
+                                # Try without prefix as a fallback
+                                potential_secret = organizer.settings.get('eupago_webhook_secret', '')
+                                
+                            if potential_secret:
+                                webhook_secret = potential_secret
+                                logger.info(f"Using webhook secret from organizer '{organizer.slug}' settings")
+                                break
+                        except Exception as e:
+                            logger.debug(f"Error accessing settings for organizer {organizer.slug}: {e}")
+            except Exception as e:
+                logger.warning(f"Error accessing organizer settings: {e}")
+                
+            # If not found in organizer settings, try environment variable
             if not webhook_secret:
-                try:
-                    secret_file = os.path.join(os.path.dirname(__file__), 'webhook_secret.txt')
-                    if os.path.exists(secret_file):
-                        with open(secret_file, 'r') as f:
-                            webhook_secret = f.read().strip()
-                            logger.info("Using webhook secret from webhook_secret.txt file")
-                except Exception as e:
-                    logger.debug(f"Could not read webhook secret file: {e}")
+                import os
+                webhook_secret = os.environ.get('EUPAGO_WEBHOOK_SECRET', '')
+                if webhook_secret:
+                    logger.info("Using webhook secret from environment variable")
+                
+                # If no environment variable, try to read from a local file
+                if not webhook_secret:
+                    try:
+                        secret_file = os.path.join(os.path.dirname(__file__), 'webhook_secret.txt')
+                        if os.path.exists(secret_file):
+                            with open(secret_file, 'r') as f:
+                                webhook_secret = f.read().strip()
+                                logger.info("Using webhook secret from webhook_secret.txt file")
+                    except Exception as e:
+                        logger.debug(f"Could not read webhook secret file: {e}")
         
         if not webhook_secret:
-            logger.error('Webhook secret not configured - please set EUPAGO_WEBHOOK_SECRET environment variable')
+            logger.error('Webhook secret not configured - please configure payment_eupago_webhook_secret in organizer settings or set EUPAGO_WEBHOOK_SECRET environment variable')
             return None
         
         # Create 256-bit AES key from webhook secret using SHA-256

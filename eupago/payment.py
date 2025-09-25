@@ -179,7 +179,11 @@ class EuPagoBaseProvider(BasePaymentProvider):
         3. The signature is base64-encoded in the X-Signature header
         """
         # First try organizer settings
-        webhook_secret = self.organizer.settings.get('eupago_webhook_secret')
+        webhook_secret = self.organizer.settings.get('payment_eupago_webhook_secret')
+        
+        # If not found with payment_ prefix, try without prefix
+        if not webhook_secret:
+            webhook_secret = self.organizer.settings.get('eupago_webhook_secret')
         
         # If not found in organizer settings, try environment variable
         if not webhook_secret:
