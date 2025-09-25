@@ -297,34 +297,34 @@ def webhook(request, *args, **kwargs):
         logger.info(f'Webhook headers: {dict(request.headers)}')
         logger.info(f'Webhook query params: {dict(request.GET)}')
         
-    # Handle both POST (production) and GET (testing)
-    if request.method == 'GET':
-        # GET method - parameters in URL (for testing)
-        logger.info('Processing GET webhook (test mode)')
-        return _handle_webhook_v1(request)
-    else:
-        # POST method - normal webhook processing
-        try:
-            event_body = request.body.decode('utf-8').strip()
-            logger.info(f'Webhook body: {event_body}')
-            
-            # Log webhook signature details
-            webhook_signature = request.META.get('HTTP_X_SIGNATURE', '')
-            if webhook_signature:
-                logger.info(f'Webhook signature provided in X-Signature header: {webhook_signature[:10]}... (length: {len(webhook_signature)})')
-            else:
-                logger.info('No webhook signature provided in X-Signature header')                # Try to parse as JSON first (Webhooks 2.0)
-                if event_body and event_body.startswith('{'):
-                    try:
-                        event_data = json.loads(event_body)
-                        logger.info(f'Parsed webhook data: {event_data}')
-                        return _handle_webhook_v2(request, event_data, event_body)
-                    except json.JSONDecodeError as e:
-                        logger.warning(f'Failed to parse JSON: {e}')
+        # Handle both POST (production) and GET (testing)
+        if request.method == 'GET':
+            # GET method - parameters in URL (for testing)
+            logger.info('Processing GET webhook (test mode)')
+            return _handle_webhook_v1(request)
+        else:
+            # POST method - normal webhook processing
+            try:
+                event_body = request.body.decode('utf-8').strip()
+                logger.info(f'Webhook body: {event_body}')
                 
-                # Not JSON, might be Webhooks 1.0 format (URL params or form data)
-                logger.info('Webhook body is not JSON, checking for Webhooks 1.0 format')
-                return _handle_webhook_v1(request)
+                # Log webhook signature details
+                webhook_signature = request.META.get('HTTP_X_SIGNATURE', '')
+                if webhook_signature:
+                    logger.info(f'Webhook signature provided in X-Signature header: {webhook_signature[:10]}... (length: {len(webhook_signature)})')
+                else:
+                    logger.info('No webhook signature provided in X-Signature header')                # Try to parse as JSON first (Webhooks 2.0)
+                    if event_body and event_body.startswith('{'):
+                        try:
+                            event_data = json.loads(event_body)
+                            logger.info(f'Parsed webhook data: {event_data}')
+                            return _handle_webhook_v2(request, event_data, event_body)
+                        except json.JSONDecodeError as e:
+                            logger.warning(f'Failed to parse JSON: {e}')
+                    
+                    # Not JSON, might be Webhooks 1.0 format (URL params or form data)
+                    logger.info('Webhook body is not JSON, checking for Webhooks 1.0 format')
+                    return _handle_webhook_v1(request)
             except UnicodeDecodeError as e:
                 logger.error(f'Webhook body decode error: {e}')
                 return HttpResponseBadRequest('Invalid body encoding')
