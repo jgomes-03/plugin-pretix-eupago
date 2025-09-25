@@ -11,6 +11,10 @@ from django_scopes import scopes_disabled
 from django.db import transaction
 from django.template.loader import get_template
 from django.utils import timezone
+import base64
+import hashlib
+from Crypto.Cipher import AES
+from Crypto.Util.Padding import unpad
 
 from pretix.base.models import Event, Order, OrderPayment, Quota
 from pretix.control.views.organizer import OrganizerDetailViewMixin, OrganizerPermissionRequiredMixin
@@ -331,9 +335,39 @@ def _handle_webhook_v2(request, event_data, event_body):
     
     # Check for encrypted data
     if 'data' in event_data and isinstance(event_data['data'], str):
-        # This is encrypted data - would need decryption logic
-        logger.warning('Received encrypted webhook data - decryption not implemented')
-        return HttpResponse('Encrypted webhooks not supported yet', status=501)
+        # This is encrypted data - attempt to decrypt
+        logger.info('Received encrypted webhook data - attempting decryption')
+        
+        # Get initialization vector from header
+        iv = request.META.get('HTTP_X_INITIALIZATION_VECTOR', '')
+        
+        # Try to get webhook secret from settings
+        webhook_secret = None
+        try:
+            from django.conf import settings
+            plugin_settings = settings.PLUGINS_CHECKOUT_SETTINGS.get('eupago', {})
+            webhook_secret = plugin_settings.get('webhook_secret', '')
+        except Exception as e:
+            logger.warning(f'Could not get webhook_secret from settings: {e}')
+        
+        # Decrypt the data using the IV from header
+        decrypted_data = _decrypt_webhook_data(event_data['data'], iv=iv, webhook_secret=webhook_secret)
+        
+        if decrypted_data:
+            logger.info('Webhook data decrypted successfully')
+            try:
+                # Try to parse the decrypted data as JSON
+                decrypted_event_data = json.loads(decrypted_data)
+                logger.info(f'Parsed decrypted webhook data: {decrypted_event_data}')
+                
+                # Recursively handle the webhook with decrypted data
+                return _handle_webhook_v2(request, decrypted_event_data, decrypted_data)
+            except json.JSONDecodeError as e:
+                logger.error(f'Failed to parse decrypted JSON: {e}')
+                return HttpResponseBadRequest('Invalid decrypted JSON')
+        else:
+            logger.error('Decryption failed - invalid data, IV, or webhook secret')
+            return HttpResponseBadRequest('Decryption failed')
     
     # Extract transaction data (could be direct or in transactions array)
     transaction_data = None
@@ -887,3 +921,64 @@ class EuPagoSettingsView(OrganizerDetailViewMixin, OrganizerPermissionRequiredMi
         }
         
         return context
+
+
+def _decrypt_webhook_data(encrypted_data, iv=None, webhook_secret=None):
+    """Decrypt encrypted webhook data using AES-256-CBC
+    
+    Args:
+        encrypted_data (str): Base64 encoded encrypted data
+        iv (str, optional): Base64 encoded initialization vector from X-Initialization-Vector header
+        webhook_secret (str, optional): Webhook secret from plugin settings
+        
+    Returns:
+        str: Decrypted data as a string, or None if decryption fails
+    """
+    try:
+        # If IV is not provided directly, try to get it from the current request
+        if not iv:
+            from django.core.handlers.wsgi import WSGIRequest
+            request = getattr(WSGIRequest, 'current', None)
+            if request:
+                iv = request.META.get('HTTP_X_INITIALIZATION_VECTOR')
+        
+        # Base64 decode the IV
+        if not iv:
+            logger.error('Missing initialization vector for decryption')
+            return None
+            
+        iv_bytes = base64.b64decode(iv)
+        
+        # Get webhook secret from settings if not provided
+        if not webhook_secret:
+            from django.conf import settings
+            from pretix.base.settings import GlobalSettingsObject
+            global_settings = GlobalSettingsObject()
+            webhook_secret = global_settings.settings.get('eupago_webhook_secret', '')
+            
+            # If still no webhook secret, try getting it from plugin settings
+            if not webhook_secret:
+                # Try to get from plugin settings - this varies by how your settings are stored
+                plugin_settings = settings.PLUGINS_CHECKOUT_SETTINGS.get('eupago', {})
+                webhook_secret = plugin_settings.get('webhook_secret', '')
+        
+        if not webhook_secret:
+            logger.error('Webhook secret not configured')
+            return None
+        
+        # Create 256-bit AES key from webhook secret using SHA-256
+        key = hashlib.sha256(webhook_secret.encode('utf-8')).digest()
+        
+        # Base64 decode the encrypted data
+        encrypted_data_bytes = base64.b64decode(encrypted_data)
+        
+        # Decrypt the data
+        cipher = AES.new(key, AES.MODE_CBC, iv_bytes)
+        decrypted = unpad(cipher.decrypt(encrypted_data_bytes), AES.block_size)
+        
+        # Return the decrypted data as a string
+        return decrypted.decode('utf-8')
+    
+    except Exception as e:
+        logger.error(f'Error decrypting webhook data: {e}', exc_info=True)
+        return None

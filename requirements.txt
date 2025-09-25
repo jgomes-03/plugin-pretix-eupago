@@ -1,3 +1,4 @@
 requests>=2.20.0
 django>=3.2
 pretix>=2.7.0
+pycryptodome>=3.15.0

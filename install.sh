@@ -70,8 +70,10 @@ echo "Next steps:"
 echo "1. Add 'eupago' to your INSTALLED_APPS or enable in Pretix admin"
 echo "2. Configure EuPago API credentials in Event Settings"
 echo "3. Enable desired payment methods"
-echo "4. Set up webhook URL in EuPago dashboard:"
-echo "   https://yourdomain.com/_eupago/webhook/"
+echo "4. Set up webhook URL and encryption in EuPago dashboard:"
+echo "   - URL: https://yourdomain.com/_eupago/webhook/"
+echo "   - Add the webhook secret provided by EuPago to your plugin settings"
+echo "   - See WEBHOOK_SETUP.md for detailed configuration instructions"
 echo ""
 
 if [ "$ENVIRONMENT" = "development" ]; then

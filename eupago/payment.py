@@ -481,7 +481,7 @@ class EuPagoBaseProvider(BasePaymentProvider):
 
 class EuPagoCreditCard(EuPagoBaseProvider):
     identifier = 'eupago_cc'
-    verbose_name = _('Credit Card (EuPago v2)')
+    verbose_name = _('Credit Card (EuPago)')
     method = 'creditcard'
     payment_form_template_name = 'pretixplugins/eupago/checkout_payment_form_cc.html'
 
@@ -673,7 +673,7 @@ class EuPagoCreditCard(EuPagoBaseProvider):
 
 class EuPagoMBWay(EuPagoBaseProvider):
     identifier = 'eupago_mbway'
-    verbose_name = _('MBWay (EuPago v2)')
+    verbose_name = _('MBWay (EuPago)')
     method = 'mbway'
 
     @property
@@ -776,7 +776,7 @@ class EuPagoMBWay(EuPagoBaseProvider):
 
 class EuPagoMultibanco(EuPagoBaseProvider):
     identifier = 'eupago_multibanco'
-    verbose_name = _('Multibanco (EuPago v2)')
+    verbose_name = _('Multibanco (EuPago)')
     method = 'multibanco'
 
     @property
@@ -837,7 +837,7 @@ class EuPagoMultibanco(EuPagoBaseProvider):
 
 class EuPagoPayShop(EuPagoBaseProvider):
     identifier = 'eupago_payshop'
-    verbose_name = _('PayShop (EuPago v2)')
+    verbose_name = _('PayShop (EuPago)')
     method = 'payshop'
 
     @property
@@ -898,7 +898,7 @@ class EuPagoPayShop(EuPagoBaseProvider):
 
 class EuPagoPayByLink(EuPagoBaseProvider):
     identifier = 'eupago_paybylink'
-    verbose_name = _('PayByLink (EuPago v2)')
+    verbose_name = _('Pagamento Online')
     method = 'paybylink'
     payment_form_template_name = 'pretixplugins/eupago/checkout_payment_form_paybylink.html'
 
