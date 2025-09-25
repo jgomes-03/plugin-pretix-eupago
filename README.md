@@ -1,57 +1,57 @@
-# EuPago v2 Payment Provider for Pretix
+# Fornecedor de Pagamentos EuPago para Pretix
 
-Este plugin fornece integração completa com os métodos de pagamento EuPago v2 para o sistema Pretix, seguindo as melhores práticas e padrões do framework.
+Este plugin fornece integração completa com os métodos de pagamento EuPago para o sistema Pretix, seguindo as melhores práticas e padrões do framework.
 
 ## Índice
 - [Métodos de Pagamento Suportados](#métodos-de-pagamento-suportados)
 - [Funcionalidades](#funcionalidades)
-- [Detecção Automática de Status de Pagamento](#detecção-automática-de-status-de-pagamento)
+- [Deteção Automática de Estado de Pagamento](#deteção-automática-de-estado-de-pagamento)
 - [Instalação](#instalação)
   - [Instalação Local](#instalação-local)
-  - [Instalação em Container](#instalação-em-container)
+  - [Instalação em Contentor](#instalação-em-contentor)
 - [Configuração](#configuração)
-- [MBWay - Experiência de Usuário Aprimorada](#mbway---experiência-de-usuário-aprimorada)
+- [MBWay - Experiência de Utilizador Melhorada](#mbway---experiência-de-utilizador-melhorada)
 - [Arquitetura de Webhooks](#arquitetura-de-webhooks)
-- [Monitoramento e Depuração](#monitoramento-e-depuração)
+- [Monitorização e Depuração](#monitorização-e-depuração)
 - [Fluxo de Pagamento](#fluxo-de-pagamento)
-- [Changelog](#changelog)
+- [Registo de Alterações](#registo-de-alterações)
 - [Licença](#licença)
 
 ## Métodos de Pagamento Suportados
 
-- **Credit Card payments** - Pagamentos diretos com cartão através da EuPago
+- **Pagamentos com Cartão de Crédito** - Pagamentos diretos com cartão através da EuPago
 - **MBWay** - Método de pagamento móvel popular em Portugal  
 - **Multibanco** - Referências Multibanco tradicionais para transferência bancária
-- **PayShop** - Pagamentos em dinheiro através da rede PayShop
+- **PayShop** - Pagamentos em numerário através da rede PayShop
 
 ## Funcionalidades
 
-- ✅ **Multi-method support** - All 4 EuPago payment methods
-- ✅ **Real-time webhooks** - Automatic payment status detection and updates
-- ✅ **MBWay Timer Page** - Interactive 5-minute countdown with real-time status polling
-- ✅ **API status polling** - Backup mechanism for missed webhooks
-- ✅ **Sandbox/Production** - Full testing environment support
-- ✅ **Error handling** - Comprehensive error management and logging
-- ✅ **Security** - Webhook signature validation and secure processing
-- ✅ **Monitoring tools** - Management commands for payment status checking
-- ✅ **Mobile-responsive** - Optimized for mobile payments
-- ✅ **Internationalization** - Multi-language support (PT/EN)
+- ✅ **Suporte multi-método** - Todos os 4 métodos de pagamento EuPago
+- ✅ **Webhooks em tempo real** - Deteção e atualizações automáticas do estado de pagamento
+- ✅ **Página de Temporizador MBWay** - Contagem regressiva interativa de 5 minutos com verificação de estado em tempo real
+- ✅ **Consulta de estado API** - Mecanismo de reserva para webhooks perdidos
+- ✅ **Sandbox/Produção** - Suporte completo ao ambiente de testes
+- ✅ **Tratamento de erros** - Gestão e registo de erros abrangente
+- ✅ **Segurança** - Validação de assinatura webhook e processamento seguro
+- ✅ **Ferramentas de monitorização** - Comandos de gestão para verificação do estado de pagamento
+- ✅ **Responsivo para dispositivos móveis** - Otimizado para pagamentos móveis
+- ✅ **Internacionalização** - Suporte multi-idioma (PT/EN)
 
-## Detecção Automática de Status de Pagamento
+## Deteção Automática de Estado de Pagamento
 
-Este plugin detecta automaticamente quando os pagamentos são concluídos e atualiza seu status no pretix usando:
+Este plugin deteta automaticamente quando os pagamentos são concluídos e atualiza o seu estado no pretix utilizando:
 
 ### Método Primário: Webhooks
-- **Notificações em tempo real** da EuPago quando o status do pagamento muda
-- **Atualizações imediatas** - status de pagamento atualizado segundos após a conclusão
-- **Validação segura** usando verificação de assinatura HMAC-SHA256
-- **Todos os métodos de pagamento suportados** (MBWay, Credit Card, Multibanco, PayShop)
+- **Notificações em tempo real** da EuPago quando o estado do pagamento muda
+- **Atualizações imediatas** - estado de pagamento atualizado segundos após a conclusão
+- **Validação segura** utilizando verificação de assinatura HMAC-SHA256
+- **Todos os métodos de pagamento suportados** (MBWay, Cartão de Crédito, Multibanco, PayShop)
 
-### Método de Backup: API Polling  
-- **Mecanismo de fallback** para webhooks perdidos
-- **Comandos de gerenciamento** para verificação do status de pagamento
-- **Monitoramento automatizado** via cron jobs (opcional)
-- **Verificação manual de status** para solução de problemas
+### Método de Reserva: Consulta API  
+- **Mecanismo de reserva** para webhooks perdidos
+- **Comandos de gestão** para verificação do estado de pagamento
+- **Monitorização automatizada** via cron jobs (opcional)
+- **Verificação manual do estado** para resolução de problemas
 
 ## Instalação
 
@@ -59,7 +59,7 @@ Este plugin detecta automaticamente quando os pagamentos são concluídos e atua
 
 1. Clone ou copie o plugin para o diretório de plugins Pretix:
 ```bash
-# Navegue até o diretório de plugins Pretix
+# Navegue até ao diretório de plugins Pretix
 cd /path/to/pretix/src/pretix/plugins
 
 # Clone ou copie o plugin eupago
@@ -85,26 +85,26 @@ timezone = Europe/Lisbon
 systemctl restart pretix-web pretix-worker
 ```
 
-### Instalação em Container
+### Instalação em Contentor
 
-Se você estiver usando o Pretix em um ambiente Docker:
+Se estiver a utilizar o Pretix num ambiente Docker:
 
 1. Adicione o plugin ao seu `Dockerfile` personalizado:
 ```Dockerfile
 FROM pretix/standalone:latest
 USER root
 WORKDIR /pretix/src
-RUN pip3 install pretix-eupago-v2==2.0.0
+RUN pip3 install pretix-eupago==1.0.0
 USER pretixuser
 ```
 
-2. Reconstrua e reinicie seus containers:
+2. Reconstrua e reinicie os seus contentores:
 ```bash
 docker-compose build
 docker-compose up -d
 ```
 
-Ou usando o script de instalação:
+Ou utilizando o script de instalação:
 
 ```bash
 # Usar o script install.sh para instalação automatizada
@@ -114,39 +114,39 @@ Ou usando o script de instalação:
 ## Configuração
 
 ### Configurações Obrigatórias
-- **API Key** - Sua chave de API EuPago
+- **API Key** - A sua chave de API EuPago
 - **Endpoint** - Escolha sandbox (teste) ou live (produção)
 
 ### Configurações Opcionais
-- **Webhook Secret** - Para segurança aprimorada (recomendado para produção)
-- **Client ID/Secret** - Se estiver usando autenticação OAuth
+- **Webhook Secret** - Para segurança melhorada (recomendado para produção)
+- **Client ID/Secret** - Se estiver a utilizar autenticação OAuth
 
 ### Configuração de Webhook
 Os webhooks são configurados automaticamente quando os pagamentos são criados. Não é necessária configuração manual de webhook!
 
-**Formato da URL do Webhook**: `https://yourdomain.com/yourevent/eupago/webhook/`
+**Formato da URL do Webhook**: `https://seudominio.com/seuevento/eupago/webhook/`
 
-## MBWay - Experiência de Usuário Aprimorada
+## MBWay - Experiência de Utilizador Melhorada
 
-O método de pagamento MBWay inclui uma **página de temporizador interativa** que proporciona uma excelente experiência ao usuário:
+O método de pagamento MBWay inclui uma **página de temporizador interativa** que proporciona uma excelente experiência ao utilizador:
 
-### 🎯 Recursos do Temporizador
+### 🎯 Funcionalidades do Temporizador
 - **Contagem regressiva de 5 minutos** com barra de progresso visual
-- **Verificação de status em tempo real** a cada 3 segundos
+- **Verificação de estado em tempo real** a cada 3 segundos
 - **Redirecionamento automático** quando o pagamento é confirmado
-- **Interface otimizada para dispositivos móveis** perfeita para pagamentos por celular
+- **Interface otimizada para dispositivos móveis** perfeita para pagamentos por telemóvel
 
-### 📱 Fluxo do Usuário
-1. Cliente seleciona MBWay e insere o número de telefone
-2. **Redirecionado para página do temporizador** com contagem regressiva e instruções
-3. Cliente recebe notificação MBWay no telefone
-4. Cliente confirma pagamento no app MBWay
-5. **Página detecta automaticamente** a confirmação e redireciona para o pedido
+### 📱 Fluxo do Utilizador
+1. Cliente seleciona MBWay e introduz o número de telemóvel
+2. **É redirecionado para a página do temporizador** com contagem regressiva e instruções
+3. Cliente recebe notificação MBWay no telemóvel
+4. Cliente confirma pagamento na aplicação MBWay
+5. **A página deteta automaticamente** a confirmação e redireciona para a encomenda
 
-### 🔄 Detecção de Status
+### 🔄 Deteção de Estado
 - **Primário**: Webhooks em tempo real da EuPago
-- **Secundário**: Polling JavaScript a cada 3 segundos
-- **Fallback**: Botões de verificação manual de status
+- **Secundário**: Consulta JavaScript a cada 3 segundos
+- **Reserva**: Botões de verificação manual de estado
 
 ## Arquitetura de Webhooks
 
@@ -157,7 +157,7 @@ O método de pagamento MBWay inclui uma **página de temporizador interativa** q
 #### Vantagens:
 - **Simplicidade**: Uma única URL para configurar
 - **Escalabilidade**: Funciona para múltiplos organizadores
-- **Manutenção**: Mais fácil de gerir e debuggar
+- **Manutenção**: Mais fácil de gerir e depurar
 - **Conformidade**: Alinhado com as melhores práticas da EuPago
 
 #### Como Funciona:
@@ -166,21 +166,21 @@ O método de pagamento MBWay inclui uma **página de temporizador interativa** q
 3. Plugin encontra o organizador correto automaticamente
 4. Processa o pagamento independentemente do evento/organizador
 
-## Monitoramento e Depuração
+## Monitorização e Depuração
 
-### Comandos de Gerenciamento
+### Comandos de Gestão
 
-Utilize os seguintes comandos para monitorar e verificar pagamentos:
+Utilize os seguintes comandos para monitorizar e verificar pagamentos:
 
 ```bash
-# Verificar status de todos os pagamentos EuPago recentes
+# Verificar estado de todos os pagamentos EuPago recentes
 python manage.py eupago_check_payments
 
-# Verificar status de um pagamento específico
+# Verificar estado de um pagamento específico
 python manage.py eupago_check_payment --reference REF123456
 ```
 
-### Cron Jobs para Monitoramento Automático
+### Cron Jobs para Monitorização Automática
 
 Configure cron jobs para verificar automaticamente pagamentos pendentes:
 
@@ -195,46 +195,48 @@ Configure cron jobs para verificar automaticamente pagamentos pendentes:
 1. Cliente seleciona método de pagamento EuPago
 2. Plugin faz chamada à API da EuPago para criar pagamento
 3. Cliente completa pagamento (depende do método)
-4. EuPago notifica o Pretix via webhook sobre mudança de status
+4. EuPago notifica o Pretix via webhook sobre alteração de estado
 5. Plugin processa webhook e marca pagamento como completo
 6. Cliente é redirecionado para página de sucesso
 
-### Fluxo do Credit Card
+### Fluxo do Cartão de Crédito
 1. Cliente seleciona pagamento por cartão de crédito
 2. Cliente é redirecionado para página de pagamento segura da EuPago
-3. Cliente insere dados do cartão e completa pagamento
+3. Cliente introduz dados do cartão e completa pagamento
 4. EuPago processa o pagamento e notifica o Pretix
 5. Cliente é redirecionado de volta ao Pretix
 
 ### Fluxo do MBWay
-1. Cliente seleciona MBWay e insere número de telefone
+1. Cliente seleciona MBWay e introduz número de telemóvel
 2. Plugin cria solicitação MBWay via API EuPago
 3. Cliente é redirecionado para página de temporizador
-4. Cliente recebe notificação MBWay no telefone para aprovar
+4. Cliente recebe notificação MBWay no telemóvel para aprovar
 5. Após aprovação, EuPago envia webhook de confirmação
 6. Cliente é automaticamente redirecionado para página de sucesso
 
 ### Fluxo do Multibanco/PayShop
 1. Cliente seleciona método de pagamento
 2. Plugin gera referência de pagamento via API EuPago
-3. Referência é exibida para o cliente
+3. Referência é apresentada ao cliente
 4. Cliente completa pagamento (banco/PayShop)
-5. EuPago detecta pagamento e notifica o Pretix via webhook
-6. Pedido é marcado como pago
+5. EuPago deteta pagamento e notifica o Pretix via webhook
+6. Encomenda é marcada como paga
 
-## Changelog
+## Registo de Alterações
 
-### v2.1.0
+### v1.0.0
 - Melhorias na página de temporizador MBWay
 - Otimização da validação de webhook
-- Correções de bugs no processamento de cartão de crédito
+- Correções de erros no processamento de cartão de crédito
+- Renomeação de eupago_v2 para eupago
+- Tradução da documentação para Português de Portugal
 
-### v2.0.0
+### Versões anteriores
 - Reescrita completa do plugin
 - Suporte para todos os métodos de pagamento EuPago
 - Implementação de webhook robusta
-- Integração aprimorada com o Pretix
+- Integração melhorada com o Pretix
 
 ## Licença
 
-Licenciado sob Apache Software License. Ver arquivo LICENSE para detalhes.
+Licenciado sob licença proprietária. Ver arquivo LICENSE para detalhes.

@@ -1,29 +1,29 @@
-# Portuguese translations for EuPago v2 plugin
-# Copyright (C) 2024
-# This file is distributed under the same license as the EuPago v2 package.
+# Portuguese translations for EuPago plugin
+# Copyright (C) 2025
+# This file is distributed under the same license as the EuPago package.
 #
 msgid ""
 msgstr ""
 "Project-Id-Version: \n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2024-01-01 12:00+0000\n"
-"PO-Revision-Date: 2024-01-01 12:00+0000\n"
+"POT-Creation-Date: 2025-09-25 12:00+0000\n"
+"PO-Revision-Date: 2025-09-25 12:00+0000\n"
 "Language: pt\n"
 "MIME-Version: 1.0\n"
 "Content-Type: text/plain; charset=UTF-8\n"
 "Content-Transfer-Encoding: 8bit\n"
 
-msgid "EuPago v2"
-msgstr "EuPago v2"
+msgid "EuPago"
+msgstr "EuPago"
 
 msgid "Accept payments via EuPago (Credit Card, MBWay, Multibanco, PayShop)"
-msgstr "Aceitar pagamentos via EuPago (Cartão de Crédito, MBWay, Multibanco, PayShop)"
+msgstr "Aceite pagamentos via EuPago (Cartão de Crédito, MBWay, Multibanco, PayShop)"
 
 msgid "API Key"
 msgstr "Chave API"
 
 msgid "Your EuPago API key"
-msgstr "A sua chave API do EuPago"
+msgstr "A sua chave API da EuPago"
 
 msgid "Client ID"
 msgstr "ID do Cliente"

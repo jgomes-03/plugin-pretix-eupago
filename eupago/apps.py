@@ -6,13 +6,13 @@ __version__ = '2.1.1'
 
 class PluginApp(AppConfig):
     name = 'eupago'
-    verbose_name = 'EuPago Payment Provider'
+    verbose_name = 'Fornecedor de Pagamentos EuPago'
 
     class PretixPluginMeta:
         name = _('EuPago')
-        author = 'EuPago Integration Team'
+        author = 'Equipa de Integração EuPago'
         category = 'PAYMENT'
-        description = _('Accept payments via EuPago (Credit Card, MBWay, Multibanco, PayShop)')
+        description = _('Aceite pagamentos via EuPago (Cartão de Crédito, MBWay, Multibanco, PayShop)')
         visible = True
         version = __version__
         compatibility = "pretix>=2.7.0"
