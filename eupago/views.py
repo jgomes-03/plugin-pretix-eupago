@@ -306,7 +306,10 @@ def webhook(request, *args, **kwargs):
         else:
             # POST method - normal webhook processing
             try:
+                # Store the original raw payload for signature validation
                 event_body = request.body.decode('utf-8').strip()
+                # Store original payload in the request object for later use in signature validation
+                request._eupago_original_payload = event_body
                 logger.info(f'Webhook body: {event_body}')
                 
                 # Log webhook signature details
@@ -340,6 +343,9 @@ def webhook(request, *args, **kwargs):
 def _handle_webhook_v2(request, event_data, event_body):
     """Handle Webhooks 2.0 format"""
     logger.info('Processing Webhooks 2.0 format')
+    
+    # The original raw payload is already stored in request._eupago_original_payload
+    # This is important because the signature is calculated on the original encrypted payload
     
     # Check for encrypted data
     if 'data' in event_data and isinstance(event_data['data'], str):
@@ -482,7 +488,11 @@ def _handle_webhook_v2(request, event_data, event_body):
                 logger.info(f'Validating webhook signature for payment: {payment.full_id}')
                 logger.info(f'Webhook signature from header: {webhook_signature[:20]}... (length: {len(webhook_signature)})')
                 
-            is_valid = provider._validate_webhook_signature(event_body, webhook_signature)
+            # Use the original payload (before decryption) for signature validation
+            # For Webhooks 2.0, this is the raw JSON with encrypted data
+            original_payload = getattr(request, '_eupago_original_payload', event_body)
+            
+            is_valid = provider._validate_webhook_signature(original_payload, webhook_signature)
             
             if not is_valid:
                 logger.warning(f'Invalid webhook signature for payment: {payment.full_id}')

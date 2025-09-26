@@ -207,12 +207,15 @@ class EuPagoBaseProvider(BasePaymentProvider):
         
         EuPago webhooks use HMAC-SHA256 signatures where:
         1. The webhook secret is the key
-        2. The raw payload is the message  
+        2. The raw payload is the message (exactly as received, before decryption)
         3. The signature is base64-encoded in the X-Signature header
         
         Based on EuPago documentation:
         hash_hmac('sha256', $data, $key, true) returns binary data
         The binary signature is then base64-encoded for transmission
+        
+        IMPORTANT: For encrypted webhooks (Webhooks 2.0), the signature is calculated
+        on the raw JSON payload containing the encrypted data, NOT on the decrypted content.
         """
         # First try organizer settings
         webhook_secret = self.get_setting('webhook_secret')
@@ -252,10 +255,17 @@ class EuPagoBaseProvider(BasePaymentProvider):
                 logger.info(f'Webhook signature received (base64): {signature[:20]}... (length: {len(signature)})')
                 logger.info(f'Webhook secret length: {len(webhook_secret)}')
             
+            # Convert webhook secret to binary for HMAC
+            # Per EuPago docs: The secret is used directly, not hashed
+            secret_key = webhook_secret.encode('utf-8')
+            
+            # Convert payload to binary - use exact same payload as received
+            payload_binary = payload.encode('utf-8')
+            
             # Generate HMAC-SHA256 signature (binary format as per EuPago docs)
             expected_signature_binary = hmac.new(
-                webhook_secret.encode('utf-8'),
-                payload.encode('utf-8'), 
+                secret_key,
+                payload_binary, 
                 hashlib.sha256
             ).digest()
             
