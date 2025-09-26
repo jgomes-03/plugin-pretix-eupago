@@ -203,99 +203,59 @@ class EuPagoBaseProvider(BasePaymentProvider):
                     
             raise PaymentException(_('Payment provider communication failed. Please try again later.'))
 
-    def _validate_webhook_signature(self, payload: str, signature: str) -> bool:
-        """Validate webhook signature according to EuPago documentation
-        
-        EuPago webhooks use HMAC-SHA256 signatures where:
-        1. The webhook secret (encryption key) is used as the HMAC key
-        2. The raw request body (exactly as received) is the message
-        3. The signature is base64-encoded in the X-Signature header
-        
-        Per EuPago documentation:
-        function verifySignature($data, $signature, $key) { 
-            $generatedSignature = hash_hmac('sha256', $data, $key, true); 
-            return hash_equals($generatedSignature, base64_decode($signature)); 
-        }
-        
-        IMPORTANT: The signature is calculated on the raw request body before any processing.
-        For encrypted webhooks, this means the entire JSON including the "data" field.
+    def _validate_webhook_signature(self, request) -> bool:
         """
-        # Get webhook secret (same as encryption key)
-        webhook_secret = self.get_setting('webhook_secret')
-        
-        if not webhook_secret:
-            import os
-            webhook_secret = os.environ.get('EUPAGO_WEBHOOK_SECRET', '')
-            
-            if not webhook_secret:
-                try:
-                    import os.path
-                    secret_file = os.path.join(os.path.dirname(__file__), 'webhook_secret.txt')
-                    if os.path.exists(secret_file):
-                        with open(secret_file, 'r') as f:
-                            webhook_secret = f.read().strip()
-                except Exception:
-                    pass
-        
+        EuPago Webhooks 2.0:
+        X-Signature = base64( HMAC_SHA256( key = webhook_secret, msg = <data field as string> ) )
+        """
+        import hmac, hashlib, base64, json, logging
+        logger = logging.getLogger('pretix.plugins.eupago')
+
+        # 1) obter a key (a MESMA usada na desencriptação "direct", i.e., tal como fornecida pela EuPago)
+        webhook_secret = self.get_setting('webhook_secret') or ''
         if not webhook_secret:
             logger.warning('No webhook secret configured - skipping signature validation')
-            return True  # Skip validation if no secret is set
-        
-        if not signature:
+            return True
+
+        # 2) ler cabeçalho e corpo cru
+        sig_b64 = request.headers.get('X-Signature', '')
+        if not sig_b64:
             logger.warning('No webhook signature provided')
             return False
-            
+
+        raw_body = request.body  # bytes, exatamente como recebido
         try:
-            import hmac
-            import hashlib
-            import base64
-            
-            # Debug logging
-            if self.debug_mode:
-                logger.info(f'=== Webhook Signature Validation Debug ===')
-                logger.info(f'Raw payload (first 100 chars): {payload[:100]}...')
-                logger.info(f'Payload length: {len(payload)} bytes')
-                logger.info(f'Received signature: {signature}')
-                logger.info(f'Webhook secret length: {len(webhook_secret)} chars')
-            
-            # Generate HMAC-SHA256 signature exactly as per EuPago PHP example
-            # hash_hmac('sha256', $data, $key, true) - the 'true' means raw binary output
-            expected_signature_binary = hmac.new(
-                webhook_secret.encode('utf-8'),    # The encryption key as bytes
-                payload.encode('utf-8'),           # Raw request body as bytes  
-                hashlib.sha256
-            ).digest()  # Raw binary output (equivalent to PHP's true parameter)
-            
-            # Decode the received base64 signature to binary for comparison
-            try:
-                received_signature_binary = base64.b64decode(signature)
-            except Exception as decode_error:
-                logger.error(f'Failed to decode base64 signature: {decode_error}')
-                return False
-            
-            # Compare using constant-time comparison (binary to binary)
-            # This is equivalent to PHP's hash_equals($generatedSignature, base64_decode($signature))
-            is_valid = hmac.compare_digest(expected_signature_binary, received_signature_binary)
-            
-            # Debug output
-            if self.debug_mode or not is_valid:
-                expected_signature_b64 = base64.b64encode(expected_signature_binary).decode('utf-8')
-                logger.info(f'Expected signature (base64): {expected_signature_b64}')
-                logger.info(f'Received signature (base64): {signature}')
-                logger.info(f'Signatures match: {is_valid}')
-                
-                if not is_valid:
-                    logger.warning(f'Webhook signature validation failed')
-                    logger.warning(f'Expected binary length: {len(expected_signature_binary)} bytes')
-                    logger.warning(f'Received binary length: {len(received_signature_binary)} bytes')
-            else:
-                logger.info('Webhook signature validation successful')
-            
-            return is_valid
-            
+            body = json.loads(raw_body.decode('utf-8'))
         except Exception as e:
-            logger.error(f'Error validating webhook signature: {e}', exc_info=True)
+            logger.error(f'Invalid JSON in webhook: {e}')
             return False
+
+        # 3) extrair o string base64 do campo "data" (quando encrypt=true). Se não estiver encriptado, assinam o corpo inteiro.
+        msg_bytes: bytes
+        if isinstance(body, dict) and 'data' in body and isinstance(body['data'], str):
+            # AQUI ESTÁ O PONTO-CHAVE: assinar o *string* do campo data, tal como veio
+            msg_bytes = body['data'].encode('utf-8')
+        else:
+            # encrypt=false: assina o corpo bruto
+            msg_bytes = raw_body
+
+        # 4) HMAC-SHA256 com a key em bytes, comparar em binário (header vem em base64)
+        expected = hmac.new(webhook_secret.encode('utf-8'), msg_bytes, hashlib.sha256).digest()
+        try:
+            received = base64.b64decode(sig_b64)
+        except Exception:
+            logger.error('Failed to base64-decode X-Signature')
+            return False
+
+        ok = hmac.compare_digest(expected, received)
+
+        # debug opcional
+        if self.debug_mode or not ok:
+            logger.info(f'Expected signature (base64): {base64.b64encode(expected).decode()}')
+            logger.info(f'Received signature (base64): {sig_b64}')
+            logger.info(f'Signatures match: {ok}')
+
+        return ok
     
     def check_payment_status(self, payment: OrderPayment) -> dict:
         """Enhanced payment status check via API - using correct EuPago identifiers"""
