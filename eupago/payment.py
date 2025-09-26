@@ -63,6 +63,21 @@ class EuPagoBaseProvider(BasePaymentProvider):
                 return bool(value)
         except Exception:
             return False
+
+    @property
+    def verify_signature(self):
+        """Check if signature verification is enabled"""
+        try:
+            value = self.get_setting('verify_signature', True)  # Default to True for security
+            # Handle various possible values
+            if isinstance(value, bool):
+                return value
+            elif isinstance(value, str):
+                return value.lower() in ('true', '1', 'yes', 'on')
+            else:
+                return bool(value)
+        except Exception:
+            return True  # Default to enabled for security
             
     @property
     def test_mode_message(self):
@@ -73,16 +88,58 @@ class EuPagoBaseProvider(BasePaymentProvider):
     @property
     def settings_form_fields(self):
         """
-        Usar a implementação padrão do pretix que inclui o campo _enabled.
-        Sobrescrever apenas para adicionar campos específicos do EuPago.
+        Settings form fields for EuPago payment providers.
+        Includes common settings like API credentials and signature verification toggle.
         """
-        # Obter os campos padrão do BasePaymentProvider
+        from collections import OrderedDict
+        from django import forms
+        from pretix.base.forms import SecretKeySettingsField
+        
+        # Get base fields from parent class
         base_fields = super().settings_form_fields
         
-        # Adicionar campos específicos do EuPago (se necessário)
-        # Por exemplo, descrições personalizadas podem ser adicionadas aqui
+        # Add EuPago-specific settings
+        eupago_fields = OrderedDict([
+            ('api_key', SecretKeySettingsField(
+                label=_('API Key'),
+                help_text=_('Your EuPago API key from the EuPago dashboard'),
+                required=True,
+            )),
+            ('webhook_secret', SecretKeySettingsField(
+                label=_('Webhook Secret'),
+                help_text=_('Your EuPago webhook secret for signature verification'),
+                required=False,
+            )),
+            ('endpoint', forms.ChoiceField(
+                label=_('Environment'),
+                choices=[
+                    ('sandbox', _('Sandbox (Testing)')),
+                    ('live', _('Live (Production)')),
+                ],
+                initial='sandbox',
+                help_text=_('Choose between sandbox for testing and live for production payments'),
+            )),
+            ('verify_signature', forms.BooleanField(
+                label=_('Enable Signature Verification'),
+                help_text=_('Verify webhook signature authenticity. Disable only for debugging purposes.'),
+                required=False,
+                initial=True,
+            )),
+            ('debug_mode', forms.BooleanField(
+                label=_('Debug Mode'),
+                help_text=_('Enable detailed logging for troubleshooting. Do not use in production.'),
+                required=False,
+                initial=False,
+            )),
+        ])
         
-        return base_fields
+        # Combine fields - put EuPago settings first, then base settings
+        combined_fields = OrderedDict(
+            list(eupago_fields.items()) + 
+            list(base_fields.items())
+        )
+        
+        return combined_fields
 
     def is_allowed(self, request: HttpRequest, total: Decimal = None) -> bool:
         """
@@ -229,6 +286,11 @@ class EuPagoBaseProvider(BasePaymentProvider):
                             webhook_secret = f.read().strip()
                 except Exception:
                     pass
+        
+        # Check if signature verification is disabled
+        if not self.verify_signature:
+            logger.info('Webhook signature verification is disabled in settings')
+            return True  # Skip validation when disabled
         
         if not webhook_secret:
             logger.warning('No webhook secret configured - skipping signature validation')

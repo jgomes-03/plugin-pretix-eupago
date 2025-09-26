@@ -38,14 +38,14 @@ def validate_webhook_signature_php_equivalent(data, signature, key):
     return hmac.compare_digest(generated_signature, provided_signature)
 
 # Test with sample data
-test_data = '{"transaction_id":"123","amount":"10.50","status":"completed"}'
-test_key = "your_webhook_secret_key"
+test_data = "{'channel': {'account': 'demo-NÚCLEO DE ESTUDANTES DE TECNOLOGIAS DO ISCTE-IUL - NET ISCTE-IUL', 'name': 'demo-NÚCLEO DE ESTUDANTES DE TECNOLOGIAS DO ISCTE-IUL - NET ISCTE-IUL'}, 'transaction': {'entity': '10045', 'reference': '217733', 'identifier': 'J0G9U-P-1', 'method': 'MW:PT', 'amount': {'value': '35.00000', 'currency': 'EUR'}, 'fees': {'value': 0.38745, 'currency': 'EUR'}, 'date': '2025-09-26T01:07:55', 'trid': '29738480', 'status': 'Paid', 'local': 'demo'}}"
+test_key = "F7b54HQEOaHvbNPBgv5fZMF7psBQ3ZXo"
 test_signature_raw = hmac.new(
     test_key.encode('utf-8'),
     test_data.encode('utf-8'),
     hashlib.sha256
 ).digest()
-test_signature_base64 = "JwyfXA4NLwOd+6qPaP1OGoZXHDjZExGzF0DpQ0xxb4g=" #base64.b64encode(test_signature_raw).decode('utf-8')
+test_signature_base64 = "JwyfXA4NLwOd+vph0eqbvskdd+zln9hkpgrdhy2jik9fflu6km4rshaa==" #base64.b64encode(test_signature_raw).decode('utf-8')
 
 print("Testing EuPago signature validation:")
 print(f"Data: {test_data}")
