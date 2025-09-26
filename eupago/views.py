@@ -442,15 +442,21 @@ def _handle_webhook_v2(request, event_data, event_body):
     if 'transactions' in event_data:
         if isinstance(event_data['transactions'], list) and event_data['transactions']:
             transaction_data = event_data['transactions'][0]  # First transaction
+            logger.info(f'Using first transaction from array')
         elif isinstance(event_data['transactions'], dict):
             transaction_data = event_data['transactions']
+            logger.info(f'Using transactions dict directly')
     else:
         # Direct format - the whole event_data is the transaction
         transaction_data = event_data
+        logger.info(f'Using entire event_data as transaction_data')
     
     if not transaction_data:
         logger.warning('No transaction data found in webhook')
         return HttpResponseBadRequest('Missing transaction data')
+    
+    # Debug: log the structure we're working with
+    logger.info(f'Transaction data structure: {list(transaction_data.keys()) if isinstance(transaction_data, dict) else "not a dict"}')
     
     # Find payment by identifier
     # Check if transaction data is nested within a 'transaction' field
@@ -530,21 +536,38 @@ def _handle_webhook_v2(request, event_data, event_body):
     # Process the webhook
     try:
         with transaction.atomic():
-            status = transaction_data.get('status', '').lower()
+            # Extract status - check if it's nested in 'transaction' field
+            status = ''
+            if 'transaction' in transaction_data and isinstance(transaction_data['transaction'], dict):
+                # Status is in the nested transaction object
+                status = transaction_data['transaction'].get('status', '').lower()
+                logger.info(f'Found status in nested transaction object: {status}')
+            else:
+                # Status is at the top level
+                status = transaction_data.get('status', '').lower()
+                logger.info(f'Found status at top level: {status}')
             
             logger.info(f'Processing webhook for payment {payment.full_id}: status={status}')
             
+            # Get the actual transaction data to pass to handlers
+            actual_transaction_data = transaction_data
+            if 'transaction' in transaction_data and isinstance(transaction_data['transaction'], dict):
+                # Use the nested transaction data for handler functions
+                actual_transaction_data = transaction_data['transaction']
+                # But preserve the full data structure for info storage
+                logger.info(f'Using nested transaction data for handlers')
+            
             if status == 'paid' or status == 'success':
-                _handle_payment_completed(payment, transaction_data)
+                _handle_payment_completed(payment, actual_transaction_data)
             elif status in ['error', 'failed', 'failure']:
-                _handle_payment_failed(payment, transaction_data)
+                _handle_payment_failed(payment, actual_transaction_data)
             elif status in ['cancel', 'cancelled']:
-                _handle_payment_cancelled(payment, transaction_data)
+                _handle_payment_cancelled(payment, actual_transaction_data)
             elif status == 'expired':
-                _handle_payment_expired(payment, transaction_data)
+                _handle_payment_expired(payment, actual_transaction_data)
             else:
                 logger.info(f'Unhandled webhook status: {status} - updating payment info only')
-                # Still update payment info
+                # Still update payment info with the full structure
                 payment.info = json.dumps(transaction_data)
                 payment.save(update_fields=['info'])
             
