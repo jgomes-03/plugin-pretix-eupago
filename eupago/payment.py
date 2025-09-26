@@ -63,21 +63,6 @@ class EuPagoBaseProvider(BasePaymentProvider):
                 return bool(value)
         except Exception:
             return False
-
-    @property
-    def verify_signature(self):
-        """Check if signature verification is enabled"""
-        try:
-            value = self.get_setting('verify_signature', True)  # Default to True for security
-            # Handle various possible values
-            if isinstance(value, bool):
-                return value
-            elif isinstance(value, str):
-                return value.lower() in ('true', '1', 'yes', 'on')
-            else:
-                return bool(value)
-        except Exception:
-            return True  # Default to enabled for security
             
     @property
     def test_mode_message(self):
@@ -88,58 +73,16 @@ class EuPagoBaseProvider(BasePaymentProvider):
     @property
     def settings_form_fields(self):
         """
-        Settings form fields for EuPago payment providers.
-        Includes common settings like API credentials and signature verification toggle.
+        Usar a implementação padrão do pretix que inclui o campo _enabled.
+        Sobrescrever apenas para adicionar campos específicos do EuPago.
         """
-        from collections import OrderedDict
-        from django import forms
-        from pretix.base.forms import SecretKeySettingsField
-        
-        # Get base fields from parent class
+        # Obter os campos padrão do BasePaymentProvider
         base_fields = super().settings_form_fields
         
-        # Add EuPago-specific settings
-        eupago_fields = OrderedDict([
-            ('api_key', SecretKeySettingsField(
-                label=_('API Key'),
-                help_text=_('Your EuPago API key from the EuPago dashboard'),
-                required=True,
-            )),
-            ('webhook_secret', SecretKeySettingsField(
-                label=_('Webhook Secret'),
-                help_text=_('Your EuPago webhook secret for signature verification'),
-                required=False,
-            )),
-            ('endpoint', forms.ChoiceField(
-                label=_('Environment'),
-                choices=[
-                    ('sandbox', _('Sandbox (Testing)')),
-                    ('live', _('Live (Production)')),
-                ],
-                initial='sandbox',
-                help_text=_('Choose between sandbox for testing and live for production payments'),
-            )),
-            ('verify_signature', forms.BooleanField(
-                label=_('Enable Signature Verification'),
-                help_text=_('Verify webhook signature authenticity. Disable only for debugging purposes.'),
-                required=False,
-                initial=True,
-            )),
-            ('debug_mode', forms.BooleanField(
-                label=_('Debug Mode'),
-                help_text=_('Enable detailed logging for troubleshooting. Do not use in production.'),
-                required=False,
-                initial=False,
-            )),
-        ])
+        # Adicionar campos específicos do EuPago (se necessário)
+        # Por exemplo, descrições personalizadas podem ser adicionadas aqui
         
-        # Combine fields - put EuPago settings first, then base settings
-        combined_fields = OrderedDict(
-            list(eupago_fields.items()) + 
-            list(base_fields.items())
-        )
-        
-        return combined_fields
+        return base_fields
 
     def is_allowed(self, request: HttpRequest, total: Decimal = None) -> bool:
         """
@@ -265,9 +208,11 @@ class EuPagoBaseProvider(BasePaymentProvider):
         EuPago webhooks use HMAC-SHA256 signatures where:
         1. The webhook secret is the key
         2. The raw payload is the message  
-        3. The signature is HEX-encoded in the X-Signature header (NOT Base64!)
+        3. The signature is base64-encoded in the X-Signature header
         
-        CORRECTION: EuPago uses hexadecimal encoding for signatures, not base64.
+        Based on EuPago documentation:
+        hash_hmac('sha256', $data, $key, true) returns binary data
+        The binary signature is then base64-encoded for transmission
         """
         # First try organizer settings
         webhook_secret = self.get_setting('webhook_secret')
@@ -287,11 +232,6 @@ class EuPagoBaseProvider(BasePaymentProvider):
                 except Exception:
                     pass
         
-        # Check if signature verification is disabled
-        if not self.verify_signature:
-            logger.info('Webhook signature verification is disabled in settings')
-            return True  # Skip validation when disabled
-        
         if not webhook_secret:
             logger.warning('No webhook secret configured - skipping signature validation')
             return True  # Skip validation if no secret is set
@@ -303,49 +243,44 @@ class EuPagoBaseProvider(BasePaymentProvider):
         try:
             import hmac
             import hashlib
+            import base64
             
             # Enhanced debug logging when debug_mode is enabled
             if self.debug_mode:
                 logger.info(f'Debug mode enabled: Showing detailed webhook validation info')
                 logger.info(f'Webhook payload (first 100 chars): {payload[:100]}... (length: {len(payload)})')
-                logger.info(f'Webhook signature received (HEX): {signature[:20]}... (length: {len(signature)})')
+                logger.info(f'Webhook signature received (base64): {signature[:20]}... (length: {len(signature)})')
                 logger.info(f'Webhook secret length: {len(webhook_secret)}')
             
-            # Generate HMAC-SHA256 signature 
+            # Generate HMAC-SHA256 signature (binary format as per EuPago docs)
             expected_signature_binary = hmac.new(
                 webhook_secret.encode('utf-8'),
                 payload.encode('utf-8'), 
                 hashlib.sha256
             ).digest()
             
-            # Convert to hexadecimal (lowercase) - EuPago uses HEX format
-            expected_signature_hex = expected_signature_binary.hex().lower()
+            # Decode the received base64 signature to binary
+            try:
+                received_signature_binary = base64.b64decode(signature)
+            except Exception as decode_error:
+                logger.error(f'Failed to decode base64 signature: {decode_error}')
+                return False
             
-            # Clean received signature - remove any whitespace and convert to lowercase
-            received_signature_hex = signature.strip().lower()
-            
-            # Compare using constant-time comparison
-            is_valid = hmac.compare_digest(expected_signature_hex, received_signature_hex)
+            # Compare using constant-time comparison (binary to binary)
+            is_valid = hmac.compare_digest(expected_signature_binary, received_signature_binary)
             
             # Enhanced debug output for troubleshooting
             if self.debug_mode or not is_valid:
-                logger.info(f'Expected signature (HEX): {expected_signature_hex}')
-                logger.info(f'Received signature (HEX): {received_signature_hex}')
+                expected_signature_b64 = base64.b64encode(expected_signature_binary).decode('utf-8')
+                logger.info(f'Expected signature (base64): {expected_signature_b64}')
+                logger.info(f'Received signature (base64): {signature}')
                 
                 if not is_valid:
                     logger.warning(f'Webhook signature validation failed - signatures do not match')
-                    
-                    # Try uppercase comparison as fallback
-                    expected_upper = expected_signature_hex.upper()
-                    received_upper = received_signature_hex.upper()
-                    if hmac.compare_digest(expected_upper, received_upper):
-                        logger.info('Signature would match with uppercase normalization')
-                    
-                    # Show lengths for debugging
-                    logger.warning(f'Expected length: {len(expected_signature_hex)}, Received length: {len(received_signature_hex)}')
+                    logger.warning(f'Expected length: {len(expected_signature_binary)} bytes, Received length: {len(received_signature_binary)} bytes')
                 
             if is_valid:
-                logger.info('Webhook signature validation successful (HEX format)')
+                logger.info('Webhook signature validation successful (base64 format)')
             
             return is_valid
             
