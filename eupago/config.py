@@ -16,6 +16,14 @@ DEFAULT_SETTINGS = {
     'multibanco_description': 'Pay via bank transfer using Multibanco reference',
     'payshop_description': 'Pay in cash at any PayShop location',
     'paybylink_description': 'Pay online with your preferred payment method',
+    
+    # PayByLink channel-specific settings (organizer-level)
+    'paybylink_mb_canal': '',  # Canal para MB/MB WAY
+    'paybylink_cc_canal': '',  # Canal para Cartão de Crédito
+    'paybylink_mb_api_key': '',  # API Key específica do canal MB/MB WAY
+    'paybylink_cc_api_key': '',  # API Key específica do canal CC
+    'paybylink_mb_webhook_secret': '',  # Webhook secret do canal MB/MB WAY
+    'paybylink_cc_webhook_secret': '',  # Webhook secret do canal CC
 }
 
 # API Endpoints
@@ -30,7 +38,9 @@ PAYMENT_METHODS = {
     'mbway': 'eupago_mbway', 
     'multibanco': 'eupago_multibanco',
     'payshop': 'eupago_payshop',
-    'paybylink': 'eupago_paybylink'
+    'paybylink': 'eupago_paybylink',
+    'paybylink_mb': 'eupago_paybylink_mb',  # MB/MB WAY PayByLink
+    'paybylink_cc': 'eupago_paybylink_cc'   # Credit Card PayByLink
 }
 
 # API Endpoints for each payment method

@@ -1,0 +1,89 @@
+{% load i18n %}
+
+<div class="panel panel-success">
+    <div class="panel-heading">
+        <h4 class="panel-title">
+            <i class="fa fa-credit-card" style="margin-right: 8px;"></i>
+            {% trans "Confirmar Pagamento com Cartão de Crédito" %}
+        </h4>
+    </div>
+    <div class="panel-body">
+        <div class="row">
+            <div class="col-md-8">
+                <div class="payment-summary" style="background: #f8f9fa; padding: 20px; border-radius: 6px; margin-bottom: 20px;">
+                    <h5 style="color: #1e88e5; margin-bottom: 15px;">
+                        <i class="fa fa-check-circle" style="margin-right: 5px;"></i>
+                        {% trans "Resumo do Pagamento" %}
+                    </h5>
+                    <p><strong>{% trans "Método:" %}</strong> {% trans "Cartão de Crédito/Débito" %}</p>
+                    <p><strong>{% trans "Total:" %}</strong> €{{ total|floatformat:2 }}</p>
+                    <p><strong>{% trans "Processamento:" %}</strong> {% trans "Seguro via EuPago" %}</p>
+                </div>
+                
+                <div class="payment-info" style="background: linear-gradient(135deg, #f3f9ff 0%, #fff8f6 100%); padding: 20px; border-radius: 6px; border-left: 4px solid #1e88e5;">
+                    <h6 style="color: #333; margin-bottom: 15px;">
+                        <i class="fa fa-info-circle" style="color: #1e88e5; margin-right: 5px;"></i>
+                        {% trans "Próximos Passos" %}
+                    </h6>
+                    <ul style="margin-bottom: 0; padding-left: 20px;">
+                        <li style="margin-bottom: 10px;">{% trans "Ao clicar em 'Finalizar Pagamento' será redirecionado para a página segura da EuPago" %}</li>
+                        <li style="margin-bottom: 10px;">{% trans "Introduza os dados do seu cartão de crédito ou débito" %}</li>
+                        <li style="margin-bottom: 10px;">{% trans "Poderá ser solicitado 3D Secure para maior segurança" %}</li>
+                        <li>{% trans "Receberá os seus bilhetes por email após confirmação do pagamento" %}</li>
+                    </ul>
+                </div>
+                
+                <div class="security-notice" style="background: #e8f5e8; padding: 15px; border-radius: 6px; margin-top: 15px; border-left: 4px solid #28a745;">
+                    <h6 style="color: #155724; margin-bottom: 10px;">
+                        <i class="fa fa-shield" style="margin-right: 5px;"></i>
+                        {% trans "Garantia de Segurança" %}
+                    </h6>
+                    <p style="margin: 0; color: #155724; font-size: 14px;">
+                        {% trans "Os seus dados de cartão são processados de forma totalmente segura através de encriptação SSL 256-bit e certificação PCI DSS. Os dados não são armazenados nos nossos servidores." %}
+                    </p>
+                </div>
+            </div>
+            
+            <div class="col-md-4">
+                <div class="payment-methods-preview" style="background: white; padding: 15px; border-radius: 6px; border: 1px solid #e9ecef; text-align: center;">
+                    <h6 style="color: #495057; margin-bottom: 15px;">{% trans "Cartões Aceites" %}</h6>
+                    
+                    <div class="visa-method" style="padding: 12px; margin-bottom: 10px; border: 2px solid #1a1f71; border-radius: 6px; background: #f8f9ff;">
+                        <i class="fa fa-cc-visa" style="font-size: 20px; color: #1a1f71; margin-bottom: 5px;"></i>
+                        <br><strong style="color: #1a1f71;">Visa</strong>
+                        <br><small style="color: #666;">{% trans "Crédito e Débito" %}</small>
+                    </div>
+                    
+                    <div class="mastercard-method" style="padding: 12px; border: 2px solid #eb001b; border-radius: 6px; background: #fff8f8;">
+                        <i class="fa fa-cc-mastercard" style="font-size: 20px; color: #eb001b; margin-bottom: 5px;"></i>
+                        <br><strong style="color: #eb001b;">Mastercard</strong>
+                        <br><small style="color: #666;">{% trans "Crédito e Débito" %}</small>
+                    </div>
+                </div>
+                
+                <div class="security-info" style="margin-top: 15px; background: #f8f9fa; padding: 15px; border-radius: 6px; text-align: center;">
+                    <i class="fa fa-lock" style="font-size: 24px; color: #28a745; margin-bottom: 10px;"></i>
+                    <h6 style="color: #495057;">{% trans "Transação Segura" %}</h6>
+                    <small style="color: #666;">{% trans "PCI DSS Certificado" %}</small>
+                </div>
+                
+                <div class="support-info" style="margin-top: 15px; background: #fff3cd; padding: 15px; border-radius: 6px; text-align: center; border: 1px solid #ffeaa7;">
+                    <i class="fa fa-question-circle" style="font-size: 20px; color: #856404; margin-bottom: 8px;"></i>
+                    <h6 style="color: #856404; margin-bottom: 5px;">{% trans "Precisa de Ajuda?" %}</h6>
+                    <small style="color: #856404;">{% trans "Contacte-nos se tiver dificuldades" %}</small>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<style>
+.visa-method, .mastercard-method {
+    transition: all 0.2s ease;
+}
+
+.visa-method:hover, .mastercard-method:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+}
+</style>

@@ -1,0 +1,167 @@
+{% load i18n %}
+{% load bootstrap3 %}
+
+<div class="panel panel-default eupago-paybylink-mb-form">
+    <div class="panel-heading">
+        <h4 class="panel-title">
+            <i class="fa fa-mobile" style="margin-right: 8px; color: #ff6b35;"></i>
+            {% trans "MB / MB WAY" %}
+            <small class="text-muted">{% trans "via EuPago" %}</small>
+        </h4>
+    </div>
+    <div class="panel-body">
+        {% if provider.get_mb_canal %}
+            <div class="alert alert-success" style="border-left: 4px solid #ff6b35;">
+                <i class="fa fa-info-circle"></i>
+                {% trans "Pay via Multibanco or MB WAY" %}
+            </div>
+        {% else %}
+            <div class="alert alert-danger">
+                <i class="fa fa-exclamation-triangle"></i>
+                {% trans "MB/MB WAY channel ID not configured" %}
+            </div>
+        {% endif %}
+        
+        <div class="payment-process-info" style="background: linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%); padding: 20px; margin: 15px 0; border-radius: 8px; border: 1px solid #ff6b35;">
+            <h5 style="color: #ff6b35; margin-bottom: 15px;">
+                <i class="fa fa-check-circle" style="margin-right: 5px;"></i>
+                {% trans "Processo de Pagamento Simples" %}
+            </h5>
+            <div class="row">
+                <div class="col-sm-6">
+                    <div class="step-item" style="display: flex; align-items: center; margin-bottom: 10px;">
+                        <div class="step-number" style="background: #ff6b35; color: white; border-radius: 50%; width: 25px; height: 25px; display: flex; align-items: center; justify-content: center; margin-right: 10px; font-weight: bold;">1</div>
+                        <span>{% trans "Clique em 'Continuar' para prosseguir" %}</span>
+                    </div>
+                    <div class="step-item" style="display: flex; align-items: center; margin-bottom: 10px;">
+                        <div class="step-number" style="background: #ff6b35; color: white; border-radius: 50%; width: 25px; height: 25px; display: flex; align-items: center; justify-content: center; margin-right: 10px; font-weight: bold;">2</div>
+                        <span>{% trans "Será redirecionado para a página de pagamento" %}</span>
+                    </div>
+                </div>
+                <div class="col-sm-6">
+                    <div class="step-item" style="display: flex; align-items: center; margin-bottom: 10px;">
+                        <div class="step-number" style="background: #ff6b35; color: white; border-radius: 50%; width: 25px; height: 25px; display: flex; align-items: center; justify-content: center; margin-right: 10px; font-weight: bold;">3</div>
+                        <span>{% trans "Escolha Multibanco ou MB WAY" %}</span>
+                    </div>
+                    <div class="step-item" style="display: flex; align-items: center; margin-bottom: 10px;">
+                        <div class="step-number" style="background: #ff6b35; color: white; border-radius: 50%; width: 25px; height: 25px; display: flex; align-items: center; justify-content: center; margin-right: 10px; font-weight: bold;">4</div>
+                        <span>{% trans "Complete o pagamento e receba os seus bilhetes" %}</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <div class="row" style="margin-top: 20px;">
+            <div class="col-md-6">
+                <div class="security-features" style="background: white; padding: 15px; border-radius: 6px; border: 1px solid #e9ecef; height: 100%;">
+                    <h6 style="color: #495057; margin-bottom: 15px;">
+                        <i class="fa fa-shield" style="margin-right: 5px; color: #ff6b35;"></i>
+                        {% trans "Segurança Garantida" %}
+                    </h6>
+                    <ul style="list-style: none; padding-left: 0; margin-bottom: 0;">
+                        <li style="margin-bottom: 8px;">
+                            <i class="fa fa-check-circle" style="color: #ff6b35; margin-right: 8px;"></i>
+                            {% trans "Encriptação SSL 256-bit" %}
+                        </li>
+                        <li style="margin-bottom: 8px;">
+                            <i class="fa fa-check-circle" style="color: #ff6b35; margin-right: 8px;"></i>
+                            {% trans "Processamento seguro" %}
+                        </li>
+                        <li style="margin-bottom: 8px;">
+                            <i class="fa fa-check-circle" style="color: #ff6b35; margin-right: 8px;"></i>
+                            {% trans "Certificação bancária" %}
+                        </li>
+                        <li>
+                            <i class="fa fa-check-circle" style="color: #ff6b35; margin-right: 8px;"></i>
+                            {% trans "Dados protegidos" %}
+                        </li>
+                    </ul>
+                </div>
+            </div>
+            <div class="col-md-6">
+                <div class="payment-methods" style="background: white; padding: 15px; border-radius: 6px; border: 1px solid #e9ecef; height: 100%;">
+                    <h6 style="color: #495057; margin-bottom: 15px;">
+                        <i class="fa fa-mobile" style="margin-right: 5px; color: #ff6b35;"></i>
+                        {% trans "Métodos Disponíveis" %}
+                    </h6>
+                    <div class="methods-grid" style="display: grid; grid-template-columns: 1fr 1fr; gap: 15px; text-align: center;">
+                        <div class="method-item" style="padding: 15px; border: 2px solid #ff6b35; border-radius: 8px; background: #fff8f6;">
+                            <i class="fa fa-mobile" style="font-size: 24px; color: #ff6b35; margin-bottom: 8px;"></i>
+                            <br><strong style="color: #ff6b35;">MB WAY</strong>
+                            <br><small style="color: #666;">{% trans "Pagamento instantâneo" %}</small>
+                        </div>
+                        <div class="method-item" style="padding: 15px; border: 2px solid #1e88e5; border-radius: 8px; background: #f3f9ff;">
+                            <i class="fa fa-university" style="font-size: 24px; color: #1e88e5; margin-bottom: 8px;"></i>
+                            <br><strong style="color: #1e88e5;">Multibanco</strong>
+                            <br><small style="color: #666;">{% trans "Referência bancária" %}</small>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <div class="alert alert-info" style="margin-top: 20px; border-left: 4px solid #17a2b8;">
+            <i class="fa fa-lightbulb-o"></i>
+            <strong>{% trans "Dica:" %}</strong>
+            {% trans "Na próxima página poderá escolher entre MB WAY (pagamento imediato) ou Multibanco (referência bancária) para completar o seu pagamento." %}
+        </div>
+    </div>
+</div>
+
+<style>
+.eupago-paybylink-mb-form {
+    border: 2px solid #ff6b35;
+    box-shadow: 0 2px 8px rgba(255, 107, 53, 0.1);
+}
+
+.eupago-paybylink-mb-form .panel-heading {
+    background: linear-gradient(135deg, #ff6b35, #e55a30);
+    color: white;
+    border-bottom: none;
+}
+
+.payment-process-info {
+    transition: transform 0.2s ease;
+}
+
+.payment-process-info:hover {
+    transform: translateY(-1px);
+}
+
+.step-item {
+    transition: all 0.2s ease;
+}
+
+.step-item:hover {
+    transform: translateX(5px);
+}
+
+.method-item {
+    transition: all 0.2s ease;
+    cursor: pointer;
+}
+
+.method-item:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+}
+
+.security-features, .payment-methods {
+    transition: transform 0.2s ease;
+}
+
+.security-features:hover, .payment-methods:hover {
+    transform: translateY(-1px);
+    box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+}
+
+@media (max-width: 768px) {
+    .payment-process-info .col-sm-6 {
+        margin-bottom: 15px;
+    }
+    
+    .methods-grid {
+        grid-template-columns: 1fr !important;
+    }
+}
+</style>

@@ -11,6 +11,7 @@ Este plugin fornece integração completa e moderna com os métodos de pagamento
   - [Instalação Local](#instalação-local)
   - [Instalação em Contentor](#instalação-em-contentor)
 - [Configuração](#configuração)
+- [Configuração de Canais PayByLink](#configuração-de-canais-paybylink)
 - [MBWay - Experiência de Utilizador Melhorada](#mbway---experiência-de-utilizador-melhorada)
 - [Arquitetura de Webhooks](#arquitetura-de-webhooks)
 - [Monitorização e Depuração](#monitorização-e-depuração)
@@ -137,6 +138,62 @@ Ou utilizando o script de instalação:
 Os webhooks são configurados automaticamente quando os pagamentos são criados. Não é necessária configuração manual de webhook!
 
 **Formato da URL do Webhook**: `https://seudominio.com/seuevento/eupago/webhook/`
+
+## Configuração de Canais PayByLink
+
+### Canais Separados por Método de Pagamento
+
+A partir da versão 2.0.0, o plugin EuPago suporta canais separados para diferentes métodos de pagamento no PayByLink:
+
+- **MB/MB WAY PayByLink** - Canal específico para Multibanco e MB WAY
+- **Credit Card PayByLink** - Canal específico para pagamentos com cartão de crédito
+
+### Configuração no Backoffice da EuPago
+
+1. Aceda ao seu backoffice da EuPago
+2. Vá para a secção "Canais" 
+3. Crie/configure dois canais distintos:
+   - Um canal para MB/MB WAY
+   - Um canal para Cartão de Crédito
+4. Anote os IDs dos canais (exemplo: `12345`, `67890`)
+
+### Configuração no Pretix
+
+#### Ao Nível do Organizador
+
+As configurações dos canais são definidas ao nível do organizador (não do evento):
+
+1. Vá para **Organizador → Configurações → EuPago**
+2. Configure os seguintes campos:
+
+**Canal MB/MB WAY:**
+- **Canal MB/MB WAY**: ID do canal para Multibanco e MB WAY
+- **API Key MB/MB WAY**: (Opcional) API Key específica deste canal
+- **Webhook Secret MB/MB WAY**: (Opcional) Webhook secret específico deste canal
+
+**Canal Cartão de Crédito:**
+- **Canal Cartão de Crédito**: ID do canal para pagamentos com cartão
+- **API Key Cartão de Crédito**: (Opcional) API Key específica deste canal  
+- **Webhook Secret Cartão de Crédito**: (Opcional) Webhook secret específico deste canal
+
+#### Configurações Opcionais
+
+Se não especificar API Keys e Webhook Secrets específicos por canal, o plugin usará as configurações gerais (API Key e Webhook Secret principais).
+
+#### Ativação nos Eventos
+
+1. Vá para **Evento → Configurações → Métodos de Pagamento**
+2. Ative os métodos que deseja usar:
+   - **MB / MB WAY** - Para pagamentos Multibanco e MB WAY
+   - **Cartão de Crédito** - Para pagamentos com cartão de crédito
+   - **Pagamento Online (Legacy)** - Método original (todos os métodos juntos)
+
+### Vantagens dos Canais Separados
+
+- **Melhor organização**: Estatísticas separadas para cada tipo de pagamento
+- **Configurações específicas**: API Keys e webhooks diferentes por canal se necessário
+- **Flexibilidade**: Pode ativar apenas os métodos que pretende oferecer
+- **UX melhorada**: Interface específica para cada método de pagamento
 
 ## MBWay - Experiência de Utilizador Melhorada
 

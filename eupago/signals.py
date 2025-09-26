@@ -7,18 +7,23 @@ from django.utils.translation import gettext_lazy as _
 
 @receiver(register_payment_providers, dispatch_uid="payment_eupago")
 def register_payment_provider(sender, **kwargs):
-    from .payment import EuPagoCreditCard, EuPagoMBWay, EuPagoMultibanco, EuPagoPayShop, EuPagoPayByLink
+    from .payment import (
+        EuPagoCreditCard, EuPagoMBWay, EuPagoMultibanco, EuPagoPayShop, 
+        EuPagoPayByLink, EuPagoPayByLinkMB, EuPagoPayByLinkCC
+    )
     import logging
     
     logger = logging.getLogger('pretix.plugins.eupago')
-    logger.info('Registering EuPago v2 payment providers')
+    logger.info('Registering EuPago v2 payment providers including separated PayByLink channels')
     
     return [
         EuPagoCreditCard,
         EuPagoMBWay, 
         EuPagoMultibanco,
         EuPagoPayShop,
-        EuPagoPayByLink,
+        EuPagoPayByLinkMB,   # MB/MB WAY PayByLink
+        EuPagoPayByLinkCC,   # Credit Card PayByLink  
+        EuPagoPayByLink,     # Original PayByLink (legacy)
     ]
 
 

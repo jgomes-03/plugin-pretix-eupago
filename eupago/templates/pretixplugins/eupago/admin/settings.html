@@ -36,6 +36,50 @@
         </div>
     </div>
     
+    <div class="panel panel-info">
+        <div class="panel-heading">
+            <h3 class="panel-title">
+                <i class="fa fa-split"></i>
+                {% trans "PayByLink Channel Configuration" %}
+            </h3>
+        </div>
+        <div class="panel-body">
+            <div class="alert alert-info">
+                <i class="fa fa-info-circle"></i>
+                <strong>{% trans "Channel Separation" %}:</strong>
+                {% trans "Configure separate EuPago channels for MB/MB WAY and Credit Card payments. This allows for separate reporting and configuration." %}
+            </div>
+            
+            <div class="row">
+                <div class="col-md-6">
+                    <h4 style="color: #ff6b35;">
+                        <i class="fa fa-mobile"></i>
+                        {% trans "MB / MB WAY Channel" %}
+                    </h4>
+                    {% bootstrap_field form.paybylink_mb_canal %}
+                    {% bootstrap_field form.paybylink_mb_api_key %}
+                    {% bootstrap_field form.paybylink_mb_webhook_secret %}
+                </div>
+                
+                <div class="col-md-6">
+                    <h4 style="color: #1e88e5;">
+                        <i class="fa fa-credit-card"></i>
+                        {% trans "Credit Card Channel" %}
+                    </h4>
+                    {% bootstrap_field form.paybylink_cc_canal %}
+                    {% bootstrap_field form.paybylink_cc_api_key %}
+                    {% bootstrap_field form.paybylink_cc_webhook_secret %}
+                </div>
+            </div>
+            
+            <div class="alert alert-warning" style="margin-top: 15px;">
+                <i class="fa fa-exclamation-triangle"></i>
+                <strong>{% trans "Note" %}:</strong>
+                {% trans "API Keys and Webhook Secrets are optional for each channel. If not specified, the general settings above will be used." %}
+            </div>
+        </div>
+    </div>
+    
     <div class="form-group submit-group">
         <button type="submit" class="btn btn-success btn-lg">
             <i class="fa fa-check"></i> {% trans "Save" %}

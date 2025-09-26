@@ -858,6 +858,51 @@ class EuPagoSettingsForm(SettingsForm):
             'class': 'form-control'
         })
     )
+    
+    # PayByLink Channel Configuration
+    paybylink_mb_canal = forms.CharField(
+        label=_('Canal MB/MB WAY'),
+        help_text=_('Canal EuPago para pagamentos Multibanco e MB WAY (encontrado no backoffice da EuPago)'),
+        required=False,
+        widget=forms.TextInput(attrs={
+            'placeholder': 'Canal ID para MB/MB WAY',
+            'class': 'form-control'
+        })
+    )
+    
+    paybylink_mb_api_key = SecretKeySettingsField(
+        label=_('API Key MB/MB WAY'),
+        help_text=_('Chave API específica do canal MB/MB WAY (opcional - se não preenchido usa a API Key geral)'),
+        required=False,
+    )
+    
+    paybylink_mb_webhook_secret = SecretKeySettingsField(
+        label=_('Webhook Secret MB/MB WAY'),
+        help_text=_('Segredo do webhook específico do canal MB/MB WAY (opcional - se não preenchido usa o Webhook Secret geral)'),
+        required=False,
+    )
+    
+    paybylink_cc_canal = forms.CharField(
+        label=_('Canal Cartão de Crédito'),
+        help_text=_('Canal EuPago para pagamentos com cartão de crédito (encontrado no backoffice da EuPago)'),
+        required=False,
+        widget=forms.TextInput(attrs={
+            'placeholder': 'Canal ID para Cartão de Crédito',
+            'class': 'form-control'
+        })
+    )
+    
+    paybylink_cc_api_key = SecretKeySettingsField(
+        label=_('API Key Cartão de Crédito'),
+        help_text=_('Chave API específica do canal de cartão de crédito (opcional - se não preenchido usa a API Key geral)'),
+        required=False,
+    )
+    
+    paybylink_cc_webhook_secret = SecretKeySettingsField(
+        label=_('Webhook Secret Cartão de Crédito'),
+        help_text=_('Segredo do webhook específico do canal de cartão de crédito (opcional - se não preenchido usa o Webhook Secret geral)'),
+        required=False,
+    )
 
 
 class EuPagoSettingsView(OrganizerDetailViewMixin, OrganizerPermissionRequiredMixin, FormView):
@@ -1289,46 +1334,55 @@ def _decrypt_webhook_data(encrypted_data, iv=None, webhook_secret=None):
                 decrypted_string = decrypted.decode('utf-8')
                 # Check if it looks like valid JSON
                 if decrypted_string.strip().startswith('{') and decrypted_string.strip().endswith('}'):
-                    logger.info("Decryption successful - result looks like valid JSON")
+                    logger.info("Decryption successful - result is valid JSON")
                     return decrypted_string
                 else:
-                    logger.warning("Decryption result doesn't look like valid JSON - possible decryption failure")
-            except UnicodeDecodeError:
-                # If UTF-8 decoding fails, it might be a binary payload or wrong key
-                logger.warning("Decrypted data is not valid UTF-8 with key method 1 - trying key method 2")
-            
-            # If we're here, the first key method failed - try with the direct key method
-            if key == key_from_hash:
-                logger.info("Trying decryption with direct key method")
-                key = key_direct
+                    logger.info("Decryption successful but result doesn't look like JSON")
+                    return decrypted_string
+            except UnicodeDecodeError as e:
+                logger.warning(f"Failed to decode as UTF-8: {e}")
                 
-                try:
-                    # Try again with the direct key
-                    cipher = AES.new(key, AES.MODE_CBC, iv_bytes)
-                    decrypted_padded = cipher.decrypt(encrypted_data_bytes)
-                    
-                    # Try with and without padding
-                    try:
-                        decrypted = unpad(decrypted_padded, AES.block_size)
-                    except ValueError:
-                        decrypted = decrypted_padded
-                        
-                    # Try to decode
-                    decrypted_string = decrypted.decode('utf-8')
-                    if decrypted_string.strip().startswith('{') and decrypted_string.strip().endswith('}'):
-                        logger.info("Decryption successful with direct key method - result is valid JSON")
-                        return decrypted_string
-                    else:
-                        logger.warning("Decryption result with direct key doesn't look like valid JSON")
-                except Exception as e:
-                    logger.error(f"Decryption with direct key method failed: {e}")
-                    
-            # If both methods failed, try one more approach - use the base64-encoded IV as the key
-            # (some implementations make this mistake)
+        except Exception as e:
+            logger.warning(f"Decryption failed with SHA-256 key: {e}")
+        
+        # If first method fails, try with direct key
+        logger.info("Retrying decryption with direct key method")
+        key = key_direct
+        
+        try:
+            # Try again with the direct key
+            cipher = AES.new(key, AES.MODE_CBC, iv_bytes)
+            decrypted_padded = cipher.decrypt(encrypted_data_bytes)
+            
+            # Try with and without padding
             try:
-                logger.info("Trying decryption with IV as key (last resort)")
-                key = iv_bytes
-                cipher = AES.new(key, AES.MODE_CBC, iv_bytes)
+                decrypted = unpad(decrypted_padded, AES.block_size)
+            except ValueError:
+                decrypted = decrypted_padded
+                
+            # Try to decode and validate
+            try:
+                decrypted_string = decrypted.decode('utf-8')
+                # Validate if it looks like JSON
+                if decrypted_string.strip().startswith('{') and decrypted_string.strip().endswith('}'):
+                    logger.info("Decryption successful with direct key - result is valid JSON")
+                    return decrypted_string
+            except Exception:
+                # If this fails too, try using the IV as the key (some implementations vary)
+                pass
+                
+            # Last resort: try using IV as key
+            logger.info("Trying alternative decryption with IV as key")
+            
+            try:
+                # Use IV as key (pad if necessary)
+                iv_as_key = iv_bytes
+                if len(iv_as_key) < 32:
+                    iv_as_key = iv_as_key.ljust(32, b'\0')
+                elif len(iv_as_key) > 32:
+                    iv_as_key = iv_as_key[:32]
+                    
+                cipher = AES.new(iv_as_key, AES.MODE_CBC, iv_bytes)
                 decrypted_padded = cipher.decrypt(encrypted_data_bytes)
                 
                 try:
