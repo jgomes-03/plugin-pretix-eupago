@@ -4,6 +4,7 @@ import json
 import logging
 import requests
 from collections import OrderedDict
+import json
 from decimal import Decimal
 from django import forms
 from django.core.exceptions import ValidationError
@@ -206,25 +207,26 @@ class EuPagoBaseProvider(BasePaymentProvider):
         """Validate webhook signature according to EuPago documentation
         
         EuPago webhooks use HMAC-SHA256 signatures where:
-        1. The webhook secret is the key
-        2. The raw payload is the message (exactly as received, before decryption)
+        1. The webhook secret (encryption key) is used as the HMAC key
+        2. The raw request body (exactly as received) is the message
         3. The signature is base64-encoded in the X-Signature header
         
-        Based on EuPago documentation:
-        hash_hmac('sha256', $data, $key, true) returns binary data
-        The binary signature is then base64-encoded for transmission
+        Per EuPago documentation:
+        function verifySignature($data, $signature, $key) { 
+            $generatedSignature = hash_hmac('sha256', $data, $key, true); 
+            return hash_equals($generatedSignature, base64_decode($signature)); 
+        }
         
-        IMPORTANT: For encrypted webhooks (Webhooks 2.0), the signature is calculated
-        on the raw JSON payload containing the encrypted data, NOT on the decrypted content.
+        IMPORTANT: The signature is calculated on the raw request body before any processing.
+        For encrypted webhooks, this means the entire JSON including the "data" field.
         """
-        # First try organizer settings
+        # Get webhook secret (same as encryption key)
         webhook_secret = self.get_setting('webhook_secret')
         
         if not webhook_secret:
             import os
             webhook_secret = os.environ.get('EUPAGO_WEBHOOK_SECRET', '')
             
-            # If still not found, try a local file
             if not webhook_secret:
                 try:
                     import os.path
@@ -248,28 +250,23 @@ class EuPagoBaseProvider(BasePaymentProvider):
             import hashlib
             import base64
             
-            # Enhanced debug logging when debug_mode is enabled
+            # Debug logging
             if self.debug_mode:
-                logger.info(f'Debug mode enabled: Showing detailed webhook validation info')
-                logger.info(f'Webhook payload (first 100 chars): {payload[:100]}... (length: {len(payload)})')
-                logger.info(f'Webhook signature received (base64): {signature[:20]}... (length: {len(signature)})')
-                logger.info(f'Webhook secret length: {len(webhook_secret)}')
+                logger.info(f'=== Webhook Signature Validation Debug ===')
+                logger.info(f'Raw payload (first 100 chars): {payload[:100]}...')
+                logger.info(f'Payload length: {len(payload)} bytes')
+                logger.info(f'Received signature: {signature}')
+                logger.info(f'Webhook secret length: {len(webhook_secret)} chars')
             
-            # Convert webhook secret to binary for HMAC
-            # Per EuPago docs: The secret is used directly, not hashed
-            secret_key = webhook_secret.encode('utf-8')
-            
-            # Convert payload to binary - use exact same payload as received
-            payload_binary = payload.encode('utf-8')
-            
-            # Generate HMAC-SHA256 signature (binary format as per EuPago docs)
+            # Generate HMAC-SHA256 signature exactly as per EuPago PHP example
+            # hash_hmac('sha256', $data, $key, true) - the 'true' means raw binary output
             expected_signature_binary = hmac.new(
-                secret_key,
-                payload_binary, 
+                webhook_secret.encode('utf-8'),    # The encryption key as bytes
+                payload.encode('utf-8'),           # Raw request body as bytes  
                 hashlib.sha256
-            ).digest()
+            ).digest()  # Raw binary output (equivalent to PHP's true parameter)
             
-            # Decode the received base64 signature to binary
+            # Decode the received base64 signature to binary for comparison
             try:
                 received_signature_binary = base64.b64decode(signature)
             except Exception as decode_error:
@@ -277,20 +274,22 @@ class EuPagoBaseProvider(BasePaymentProvider):
                 return False
             
             # Compare using constant-time comparison (binary to binary)
+            # This is equivalent to PHP's hash_equals($generatedSignature, base64_decode($signature))
             is_valid = hmac.compare_digest(expected_signature_binary, received_signature_binary)
             
-            # Enhanced debug output for troubleshooting
+            # Debug output
             if self.debug_mode or not is_valid:
                 expected_signature_b64 = base64.b64encode(expected_signature_binary).decode('utf-8')
                 logger.info(f'Expected signature (base64): {expected_signature_b64}')
                 logger.info(f'Received signature (base64): {signature}')
+                logger.info(f'Signatures match: {is_valid}')
                 
                 if not is_valid:
-                    logger.warning(f'Webhook signature validation failed - signatures do not match')
-                    logger.warning(f'Expected length: {len(expected_signature_binary)} bytes, Received length: {len(received_signature_binary)} bytes')
-                
-            if is_valid:
-                logger.info('Webhook signature validation successful (base64 format)')
+                    logger.warning(f'Webhook signature validation failed')
+                    logger.warning(f'Expected binary length: {len(expected_signature_binary)} bytes')
+                    logger.warning(f'Received binary length: {len(received_signature_binary)} bytes')
+            else:
+                logger.info('Webhook signature validation successful')
             
             return is_valid
             
@@ -1186,3 +1185,47 @@ class EuPagoPayByLink(EuPagoBaseProvider):
         logger.info(f'EuPagoPayByLink.checkout_confirm_render - template rendered successfully (length: {len(rendered)})')
         
         return rendered
+
+    def test_webhook_signature_validation(self, test_payload: str, test_signature: str, test_secret: str) -> dict:
+        """Test webhook signature validation with provided values - for debugging only"""
+        import hmac
+        import hashlib
+        import base64
+        
+        result = {
+            'payload': test_payload,
+            'signature': test_signature,
+            'secret': test_secret,
+            'validation_result': False,
+            'expected_signature': None,
+            'debug_info': {}
+        }
+        
+        try:
+            # Generate expected signature
+            expected_signature_binary = hmac.new(
+                test_secret.encode('utf-8'),
+                test_payload.encode('utf-8'),
+                hashlib.sha256
+            ).digest()
+            
+            expected_signature_b64 = base64.b64encode(expected_signature_binary).decode('utf-8')
+            result['expected_signature'] = expected_signature_b64
+            
+            # Validate
+            received_signature_binary = base64.b64decode(test_signature)
+            is_valid = hmac.compare_digest(expected_signature_binary, received_signature_binary)
+            result['validation_result'] = is_valid
+            
+            result['debug_info'] = {
+                'payload_length': len(test_payload),
+                'secret_length': len(test_secret),
+                'signature_length': len(test_signature),
+                'expected_binary_length': len(expected_signature_binary),
+                'received_binary_length': len(received_signature_binary),
+            }
+            
+        except Exception as e:
+            result['error'] = str(e)
+            
+        return result

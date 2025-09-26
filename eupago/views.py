@@ -306,25 +306,28 @@ def webhook(request, *args, **kwargs):
         else:
             # POST method - normal webhook processing
             try:
-                # Store the original raw payload for signature validation
-                event_body = request.body.decode('utf-8').strip()
-                # Store original payload in the request object for later use in signature validation
-                request._eupago_original_payload = event_body
-                logger.info(f'Webhook body: {event_body}')
+                # Get the raw request body - this is what signature validation uses
+                raw_body = request.body.decode('utf-8').strip()
+                
+                # Store the ORIGINAL raw payload for signature validation
+                # This is crucial - signature must be calculated on exactly what was received
+                request._eupago_original_raw_payload = raw_body
+                
+                logger.info(f'Webhook raw body received (length: {len(raw_body)}): {raw_body[:200]}...')
                 
                 # Log webhook signature details
                 webhook_signature = request.META.get('HTTP_X_SIGNATURE', '')
                 if webhook_signature:
-                    logger.info(f'Webhook signature provided in X-Signature header: {webhook_signature[:10]}... (length: {len(webhook_signature)})')
+                    logger.info(f'Webhook signature provided in X-Signature header: {webhook_signature}')
                 else:
                     logger.info('No webhook signature provided in X-Signature header')
                 
-                # Try to parse as JSON first (Webhooks 2.0)
-                if event_body and event_body.startswith('{'):
+                # Try to parse as JSON (should work for both encrypted and unencrypted)
+                if raw_body and raw_body.startswith('{'):
                     try:
-                        event_data = json.loads(event_body)
-                        logger.info(f'Parsed webhook data: {event_data}')
-                        return _handle_webhook_v2(request, event_data, event_body)
+                        event_data = json.loads(raw_body)
+                        logger.info(f'Parsed webhook JSON successfully')
+                        return _handle_webhook_v2(request, event_data, raw_body)
                     except json.JSONDecodeError as e:
                         logger.warning(f'Failed to parse JSON: {e}')
                 
@@ -344,8 +347,9 @@ def _handle_webhook_v2(request, event_data, event_body):
     """Handle Webhooks 2.0 format"""
     logger.info('Processing Webhooks 2.0 format')
     
-    # The original raw payload is already stored in request._eupago_original_payload
-    # This is important because the signature is calculated on the original encrypted payload
+    # The original raw payload is stored in request._eupago_original_raw_payload
+    # This is the exact request body used for signature validation
+    # DO NOT overwrite this during recursive calls after decryption
     
     # Check for encrypted data
     if 'data' in event_data and isinstance(event_data['data'], str):
@@ -423,6 +427,8 @@ def _handle_webhook_v2(request, event_data, event_body):
                 logger.info(f'Parsed decrypted webhook data: {decrypted_event_data}')
                 
                 # Recursively handle the webhook with decrypted data
+                # BUT keep the original encrypted payload in the request object
+                # This ensures signature validation happens with the original encrypted payload
                 return _handle_webhook_v2(request, decrypted_event_data, decrypted_data)
             except json.JSONDecodeError as e:
                 logger.error(f'Failed to parse decrypted JSON: {e}')
@@ -488,11 +494,23 @@ def _handle_webhook_v2(request, event_data, event_body):
                 logger.info(f'Validating webhook signature for payment: {payment.full_id}')
                 logger.info(f'Webhook signature from header: {webhook_signature[:20]}... (length: {len(webhook_signature)})')
                 
-            # Use the original payload (before decryption) for signature validation
-            # For Webhooks 2.0, this is the raw JSON with encrypted data
-            original_payload = getattr(request, '_eupago_original_payload', event_body)
+            # Use the RAW request body for signature validation (before any processing)
+            # This is exactly what EuPago uses to calculate the signature
+            raw_payload = getattr(request, '_eupago_original_raw_payload', event_body)
             
-            is_valid = provider._validate_webhook_signature(original_payload, webhook_signature)
+            if debug_mode:
+                logger.info(f'=== Signature Validation Debug ===')
+                logger.info(f'Using raw payload for validation (length: {len(raw_payload)})')
+                logger.info(f'Raw payload preview: {raw_payload[:100]}...')
+                logger.info(f'Webhook signature: {webhook_signature}')
+                
+                # Check payload format
+                if '"data":' in raw_payload:
+                    logger.info('Payload contains encrypted data field - this is correct for signature validation')
+                else:
+                    logger.info('Payload does not contain encrypted data field')
+            
+            is_valid = provider._validate_webhook_signature(raw_payload, webhook_signature)
             
             if not is_valid:
                 logger.warning(f'Invalid webhook signature for payment: {payment.full_id}')
@@ -1035,28 +1053,113 @@ class EuPagoSettingsView(OrganizerDetailViewMixin, OrganizerPermissionRequiredMi
 def _decrypt_webhook_data(encrypted_data, iv=None, webhook_secret=None):
     """Decrypt encrypted webhook data using AES-256-CBC
     
+    Matches EuPago PHP documentation exactly:
+    function decrypt($encryptedData, $key, $iv) { 
+        $cipher = "aes-256-cbc"; 
+        $options = OPENSSL_RAW_DATA; 
+        $decryptedData = openssl_decrypt(base64_decode($encryptedData), $cipher, $key, $options, base64_decode($iv)); 
+        return $decryptedData; 
+    }
+    
     Args:
-        encrypted_data (str): Base64 encoded encrypted data
-        iv (str, optional): Base64 encoded initialization vector from X-Initialization-Vector header
-        webhook_secret (str, optional): Webhook secret from plugin settings
+        encrypted_data (str): Base64 encoded encrypted data from the 'data' field
+        iv (str, optional): Base64 encoded initialization vector from X-Initialization-Vector header  
+        webhook_secret (str, optional): The encryption key (same as webhook secret)
         
     Returns:
         str: Decrypted data as a string, or None if decryption fails
     """
     try:
-        # If IV is not provided directly, try to get it from the current request
-        if not iv:
-            from django.core.handlers.wsgi import WSGIRequest
-            request = getattr(WSGIRequest, 'current', None)
-            if request:
-                iv = request.META.get('HTTP_X_INITIALIZATION_VECTOR')
-        
-        # Base64 decode the IV
-        if not iv:
-            logger.error('Missing initialization vector for decryption')
+        # Validate inputs
+        if not encrypted_data:
+            logger.error('No encrypted data provided for decryption')
             return None
             
-        iv_bytes = base64.b64decode(iv)
+        if not iv:
+            logger.error('Missing initialization vector (IV) for decryption')
+            return None
+            
+        if not webhook_secret:
+            logger.error('Missing webhook secret (encryption key) for decryption')
+            return None
+        
+        logger.info(f'Starting decryption process...')
+        logger.info(f'Encrypted data length: {len(encrypted_data)} chars')
+        logger.info(f'IV length: {len(iv)} chars')
+        logger.info(f'Webhook secret length: {len(webhook_secret)} chars')
+        
+        # Step 1: Base64 decode the encrypted data (as per PHP: base64_decode($encryptedData))
+        try:
+            encrypted_bytes = base64.b64decode(encrypted_data)
+            logger.info(f'Decoded encrypted data: {len(encrypted_bytes)} bytes')
+        except Exception as e:
+            logger.error(f'Failed to base64 decode encrypted data: {e}')
+            return None
+            
+        # Step 2: Base64 decode the IV (as per PHP: base64_decode($iv))
+        try:
+            iv_bytes = base64.b64decode(iv)
+            logger.info(f'Decoded IV: {len(iv_bytes)} bytes')
+            if len(iv_bytes) != 16:
+                logger.warning(f'IV length is {len(iv_bytes)}, expected 16 bytes for AES')
+        except Exception as e:
+            logger.error(f'Failed to base64 decode IV: {e}')
+            return None
+            
+        # Step 3: Prepare the encryption key
+        # The webhook secret is used directly as the encryption key
+        key = webhook_secret.encode('utf-8')
+        
+        # For AES-256-CBC, we need exactly 32 bytes
+        if len(key) < 32:
+            # Pad with zeros if too short
+            key = key.ljust(32, b'\0')
+            logger.info(f'Padded key to 32 bytes (was {len(webhook_secret)} chars)')
+        elif len(key) > 32:
+            # Truncate if too long  
+            key = key[:32]
+            logger.info(f'Truncated key to 32 bytes (was {len(webhook_secret)} chars)')
+        else:
+            logger.info(f'Key is exactly 32 bytes')
+            
+        # Step 4: Decrypt using AES-256-CBC (matching PHP openssl_decrypt with OPENSSL_RAW_DATA)
+        try:
+            # Use pycrypto AES which is already imported
+            cipher = AES.new(key, AES.MODE_CBC, iv_bytes)
+            decrypted_padded = cipher.decrypt(encrypted_bytes)
+            
+            # Step 5: Remove PKCS7 padding (PHP openssl_decrypt does this automatically)
+            try:
+                decrypted_bytes = unpad(decrypted_padded, AES.block_size)
+            except Exception as padding_error:
+                logger.warning(f'PKCS7 unpadding failed: {padding_error}. Using raw decrypted data.')
+                # Sometimes the data doesn't use standard padding, try manual cleanup
+                decrypted_bytes = decrypted_padded.rstrip(b'\x00\x01\x02\x03\x04\x05\x06\x07\x08\x09\x0a\x0b\x0c\x0d\x0e\x0f')
+            
+            # Step 6: Convert to string (PHP automatically converts to string)
+            try:
+                decrypted_string = decrypted_bytes.decode('utf-8')
+                logger.info('Decryption successful - data decoded as UTF-8')
+                
+                # Validate the result looks like JSON
+                if decrypted_string.strip().startswith('{') or decrypted_string.strip().startswith('['):
+                    logger.info('Decrypted data appears to be valid JSON')
+                    return decrypted_string
+                else:
+                    logger.warning('Decrypted data does not appear to be JSON - might be invalid key/IV')
+                    return decrypted_string  # Return anyway, let caller validate
+                    
+            except UnicodeDecodeError as e:
+                logger.error(f'Failed to decode decrypted bytes as UTF-8: {e}')
+                return None
+                
+        except Exception as e:
+            logger.error(f'AES decryption failed: {e}')
+            return None
+    
+    except Exception as e:
+        logger.error(f'Error in webhook decryption: {e}', exc_info=True)
+        return None
         
         # Get webhook secret from settings if not provided
         if not webhook_secret:
