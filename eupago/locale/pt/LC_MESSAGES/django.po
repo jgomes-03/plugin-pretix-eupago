@@ -90,3 +90,82 @@ msgstr "Pague por transferência bancária usando referência Multibanco"
 
 msgid "Pay in cash at any PayShop location"
 msgstr "Pague em dinheiro em qualquer loja PayShop"
+
+# PayByLink / Pagamento Online translations
+msgid "Pagamento Online"
+msgstr "Pagamento Online"
+
+msgid "via EuPago"
+msgstr "via EuPago"
+
+msgid "Processo de Pagamento Simples"
+msgstr "Processo de Pagamento Simples"
+
+msgid "Clique em 'Continuar' para prosseguir"
+msgstr "Clique em 'Continuar' para prosseguir"
+
+msgid "Será redirecionado para a página de pagamento"
+msgstr "Será redirecionado para a página de pagamento"
+
+msgid "Escolha o seu método de pagamento preferido"
+msgstr "Escolha o seu método de pagamento preferido"
+
+msgid "Complete o pagamento e receba os seus bilhetes"
+msgstr "Complete o pagamento e receba os seus bilhetes"
+
+msgid "Segurança Garantida"
+msgstr "Segurança Garantida"
+
+msgid "Encriptação SSL 256-bit"
+msgstr "Encriptação SSL 256-bit"
+
+msgid "Processamento seguro"
+msgstr "Processamento seguro"
+
+msgid "Certificação PCI DSS"
+msgstr "Certificação PCI DSS"
+
+msgid "Dados protegidos"
+msgstr "Dados protegidos"
+
+msgid "Métodos Disponíveis"
+msgstr "Métodos Disponíveis"
+
+msgid "Dica:"
+msgstr "Dica:"
+
+msgid "Na próxima página poderá escolher entre cartão de crédito, MB WAY, Multibanco ou PayShop para completar o seu pagamento de forma rápida e segura."
+msgstr "Na próxima página poderá escolher entre cartão de crédito, MB WAY, Multibanco ou PayShop para completar o seu pagamento de forma rápida e segura."
+
+msgid "Pronto para Pagar!"
+msgstr "Pronto para Pagar!"
+
+msgid "Será redirecionado para a página de pagamento segura da EuPago onde poderá completar o seu pagamento. Após o pagamento bem-sucedido, será automaticamente redirecionado de volta para este site."
+msgstr "Será redirecionado para a página de pagamento segura da EuPago onde poderá completar o seu pagamento. Após o pagamento bem-sucedido, será automaticamente redirecionado de volta para este site."
+
+msgid "Resumo do Pagamento"
+msgstr "Resumo do Pagamento"
+
+msgid "Valor Total:"
+msgstr "Valor Total:"
+
+msgid "Próximos Passos"
+msgstr "Próximos Passos"
+
+msgid "Clique em 'Confirmar Pagamento'"
+msgstr "Clique em 'Confirmar Pagamento'"
+
+msgid "Escolha o método de pagamento"
+msgstr "Escolha o método de pagamento"
+
+msgid "Complete o pagamento"
+msgstr "Complete o pagamento"
+
+msgid "Confirmação Automática"
+msgstr "Confirmação Automática"
+
+msgid "A sua encomenda será confirmada automaticamente assim que recebermos a confirmação do seu pagamento. Isto normalmente acontece dentro de alguns segundos."
+msgstr "A sua encomenda será confirmada automaticamente assim que recebermos a confirmação do seu pagamento. Isto normalmente acontece dentro de alguns segundos."
+
+msgid "Será redirecionado para a página de pagamento segura da EuPago onde poderá completar o seu pagamento escolhendo entre vários métodos disponíveis."
+msgstr "Será redirecionado para a página de pagamento segura da EuPago onde poderá completar o seu pagamento escolhendo entre vários métodos disponíveis."

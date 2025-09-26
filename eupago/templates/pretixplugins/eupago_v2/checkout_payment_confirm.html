@@ -2,23 +2,47 @@
 <div class="panel panel-default">
     <div class="panel-heading">
         <h4 class="panel-title">
+            <i class="fa fa-credit-card" style="margin-right: 8px;"></i>
             {{ provider.verbose_name }}
         </h4>
     </div>
     <div class="panel-body">
         {% if provider.method == 'creditcard' %}
-            <p>{% trans "You will be redirected to a secure payment page to enter your credit card details." %}</p>
+            <div class="alert alert-info">
+                <i class="fa fa-info-circle"></i>
+                <strong>{% trans "Credit Card Payment" %}</strong><br>
+                {% trans "You will be redirected to a secure payment page to enter your credit card details. Your payment will be processed securely by EuPago." %}
+            </div>
         {% elif provider.method == 'mbway' %}
-            <p>{% trans "You will receive a notification on your mobile phone to complete the payment." %}</p>
+            <div class="alert alert-info">
+                <i class="fa fa-mobile-phone"></i>
+                <strong>{% trans "MB WAY Payment" %}</strong><br>
+                {% trans "You will receive a notification on your mobile phone to complete the payment. Make sure your MB WAY app is active." %}
+            </div>
         {% elif provider.method == 'multibanco' %}
-            <p>{% trans "You will receive payment instructions with reference details." %}</p>
+            <div class="alert alert-info">
+                <i class="fa fa-university"></i>
+                <strong>{% trans "Multibanco Payment" %}</strong><br>
+                {% trans "You will receive payment instructions with reference details to pay at any ATM, online banking, or Multibanco terminal." %}
+            </div>
         {% elif provider.method == 'payshop' %}
-            <p>{% trans "You will receive a payment reference to pay in cash at any PayShop location." %}</p>
+            <div class="alert alert-info">
+                <i class="fa fa-shopping-cart"></i>
+                <strong>{% trans "PayShop Payment" %}</strong><br>
+                {% trans "You will receive a payment reference to pay in cash at any PayShop location (supermarkets, post offices, etc.)." %}
+            </div>
+        {% elif provider.method == 'paybylink' %}
+            <div class="alert alert-info">
+                <i class="fa fa-globe"></i>
+                <strong>{% trans "Pagamento Online" %}</strong><br>
+                {% trans "Será redirecionado para a página de pagamento segura da EuPago onde poderá completar o seu pagamento escolhendo entre vários métodos disponíveis." %}
+            </div>
         {% endif %}
         
         {% if provider.test_mode_message %}
             <div class="alert alert-warning">
-                <i class="fa fa-warning"></i>
+                <i class="fa fa-exclamation-triangle"></i>
+                <strong>{% trans "Test Mode" %}</strong><br>
                 {{ provider.test_mode_message }}
             </div>
         {% endif %}

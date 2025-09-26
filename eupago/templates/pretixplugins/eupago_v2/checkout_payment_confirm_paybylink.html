@@ -1,46 +1,106 @@
 {% load i18n %}
 {% load bootstrap3 %}
+{% load money %}
 
 <div class="panel panel-default eupago-paybylink-confirm">
     <div class="panel-heading">
         <h4 class="panel-title">
-            <i class="fa fa-link"></i>
-            {% trans "PayByLink" %}
-            <small class="text-muted">{% trans "Powered by EuPago" %}</small>
+            <i class="fa fa-globe" style="margin-right: 8px; color: #4CAF50;"></i>
+            {% trans "Pagamento Online" %}
+            <small class="text-muted">{% trans "via EuPago" %}</small>
         </h4>
     </div>
     <div class="panel-body">
-        <p>
-            {% blocktrans trimmed %}
-            You will be redirected to the payment page to complete your payment. 
-            After successful payment, you will be returned to this site.
-            {% endblocktrans %}
-        </p>
-        
-        <div class="alert alert-info">
-            <i class="fa fa-info-circle"></i>
-            {% blocktrans trimmed %}
-            Your order will be confirmed as soon as we receive confirmation of your payment.
-            {% endblocktrans %}
+        <div class="alert alert-success" style="border-left: 4px solid #4CAF50;">
+            <h5 style="margin-bottom: 15px;">
+                <i class="fa fa-check-circle"></i>
+                {% trans "Pronto para Pagar!" %}
+            </h5>
+            <p style="margin-bottom: 0;">
+                {% trans "Será redirecionado para a página de pagamento segura da EuPago onde poderá completar o seu pagamento. Após o pagamento bem-sucedido, será automaticamente redirecionado de volta para este site." %}
+            </p>
         </div>
         
-        <p>{% trans "Amount" %}: <strong>{{ total|floatformat:2 }} €</strong></p>
+        <div class="payment-summary" style="background: linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%); padding: 20px; margin: 20px 0; border-radius: 8px; border: 2px solid #4CAF50;">
+            <div class="row">
+                <div class="col-sm-6">
+                    <h6 style="color: #495057; margin-bottom: 10px;">
+                        <i class="fa fa-shopping-cart" style="margin-right: 5px; color: #4CAF50;"></i>
+                        {% trans "Resumo do Pagamento" %}
+                    </h6>
+                    <div style="background: white; padding: 15px; border-radius: 6px; border: 1px solid #dee2e6;">
+                        <div style="display: flex; justify-content: space-between; align-items: center;">
+                            <span style="font-weight: 500;">{% trans "Valor Total:" %}</span>
+                            <span style="font-size: 24px; font-weight: bold; color: #4CAF50;">
+                                {{ payment.amount|money:event.currency }}
+                            </span>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-sm-6">
+                    <h6 style="color: #495057; margin-bottom: 10px;">
+                        <i class="fa fa-clock-o" style="margin-right: 5px; color: #4CAF50;"></i>
+                        {% trans "Próximos Passos" %}
+                    </h6>
+                    <div style="background: white; padding: 15px; border-radius: 6px; border: 1px solid #dee2e6;">
+                        <ol style="margin-bottom: 0; padding-left: 20px;">
+                            <li style="margin-bottom: 5px;">{% trans "Clique em 'Confirmar Pagamento'" %}</li>
+                            <li style="margin-bottom: 5px;">{% trans "Escolha o método de pagamento" %}</li>
+                            <li>{% trans "Complete o pagamento" %}</li>
+                        </ol>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <div class="alert alert-info" style="border-left: 4px solid #17a2b8; margin-top: 20px;">
+            <div class="row">
+                <div class="col-sm-8">
+                    <h6><i class="fa fa-info-circle"></i> {% trans "Confirmação Automática" %}</h6>
+                    <p style="margin-bottom: 0;">
+                        {% trans "A sua encomenda será confirmada automaticamente assim que recebermos a confirmação do seu pagamento. Isto normalmente acontece dentro de alguns segundos." %}
+                    </p>
+                </div>
+                <div class="col-sm-4 text-right">
+                    <i class="fa fa-shield fa-3x" style="color: #4CAF50; opacity: 0.3;"></i>
+                </div>
+            </div>
+        </div>
     </div>
 </div>
 
 <style>
 .eupago-paybylink-confirm {
-    border: 2px solid #e7f3ff;
+    border: 2px solid #4CAF50;
+    box-shadow: 0 2px 8px rgba(76, 175, 80, 0.1);
 }
 
 .eupago-paybylink-confirm .panel-heading {
-    background: linear-gradient(135deg, #4a148c, #3b1c4a);
+    background: linear-gradient(135deg, #4CAF50, #45a049);
     color: white;
     border-bottom: none;
 }
 
-.alert-info {
-    border-left: 4px solid #4a148c;
-    background-color: #f3e5f5;
+.payment-summary {
+    transition: transform 0.2s ease;
+}
+
+.payment-summary:hover {
+    transform: translateY(-1px);
+    box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+}
+
+@media (max-width: 768px) {
+    .payment-summary .col-sm-6 {
+        margin-bottom: 15px;
+    }
+    
+    .alert-info .col-sm-8, .alert-info .col-sm-4 {
+        text-align: center !important;
+    }
+    
+    .alert-info .fa-3x {
+        margin-top: 10px;
+    }
 }
 </style>

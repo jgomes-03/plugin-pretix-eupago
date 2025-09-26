@@ -56,7 +56,7 @@ class EuPagoReturnView(View):
         from pretix.multidomain.urlreverse import build_absolute_uri, eventreverse
         
         status = kwargs.get('status')
-        logger.info(f'EuPagoReturnView.get called with status: {status} for payment {self.payment.full_id}')
+        logger.debug(f'EuPagoReturnView.get called with status: {status} for payment {self.payment.full_id}')
         
         # Check if we got a specific status from EuPago
         if status == 'success':
@@ -72,7 +72,7 @@ class EuPagoReturnView(View):
                 self.payment.info = json.dumps(payment_info)
                 self.payment.save(update_fields=['info'])
                 
-                logger.info(f'Payment {self.payment.full_id} user returned via success URL - waiting for webhook confirmation')
+                logger.debug(f'Payment {self.payment.full_id} user returned via success URL - waiting for webhook confirmation')
                 messages.info(request, _('Your payment is being processed. You will receive confirmation shortly.'))
                 
             # Redirect to order page
@@ -293,10 +293,7 @@ def webhook(request, *args, **kwargs):
     """Handle EuPago webhook notifications - supports both GET and POST for testing"""
     
     try:
-        logger.info(f'====== WEBHOOK RECEBIDO ======')
-        logger.info(f'Webhook received: method={request.method}, content_type={request.content_type}')
-        logger.info(f'Webhook headers: {dict(request.headers)}')
-        logger.info(f'Webhook query params: {dict(request.GET)}')
+        logger.info(f'Webhook received: method={request.method}')
         
         # Handle both POST (production) and GET (testing)
         if request.method == 'GET':
@@ -313,26 +310,26 @@ def webhook(request, *args, **kwargs):
                 # This is crucial - signature must be calculated on exactly what was received
                 request._eupago_original_raw_payload = raw_body
                 
-                logger.info(f'Webhook raw body received (length: {len(raw_body)}): {raw_body[:200]}...')
+                logger.debug(f'Webhook received (length: {len(raw_body)} bytes)')
                 
                 # Log webhook signature details
                 webhook_signature = request.META.get('HTTP_X_SIGNATURE', '')
                 if webhook_signature:
-                    logger.info(f'Webhook signature provided in X-Signature header: {webhook_signature}')
+                    logger.debug(f'Webhook signature provided in X-Signature header')
                 else:
-                    logger.info('No webhook signature provided in X-Signature header')
+                    logger.warning('No webhook signature provided in X-Signature header')
                 
                 # Try to parse as JSON (should work for both encrypted and unencrypted)
                 if raw_body and raw_body.startswith('{'):
                     try:
                         event_data = json.loads(raw_body)
-                        logger.info(f'Parsed webhook JSON successfully')
+                        logger.debug(f'Parsed webhook JSON successfully')
                         return _handle_webhook_v2(request, event_data, raw_body)
                     except json.JSONDecodeError as e:
                         logger.warning(f'Failed to parse JSON: {e}')
                 
                 # Not JSON, might be Webhooks 1.0 format (URL params or form data)
-                logger.info('Webhook body is not JSON, checking for Webhooks 1.0 format')
+                logger.debug('Webhook body is not JSON, checking for Webhooks 1.0 format')
                 return _handle_webhook_v1(request)
             except UnicodeDecodeError as e:
                 logger.error(f'Webhook body decode error: {e}')
@@ -354,22 +351,15 @@ def _handle_webhook_v2(request, event_data, event_body):
     # Check for encrypted data
     if 'data' in event_data and isinstance(event_data['data'], str):
         # This is encrypted data - attempt to decrypt
-        logger.info('Received encrypted webhook data - attempting decryption')
+        logger.debug('Received encrypted webhook data - attempting decryption')
         
-        # Log encrypted data details for debugging
         encrypted_data = event_data['data']
-        encrypted_preview = encrypted_data[:20] + "..." if len(encrypted_data) > 20 else encrypted_data
-        logger.info(f'Encrypted data (first 20 chars): {encrypted_preview}')
-        logger.info(f'Encrypted data length: {len(encrypted_data)} characters')
         
         # Get initialization vector from header
         iv = request.META.get('HTTP_X_INITIALIZATION_VECTOR', '')
         if not iv:
             logger.error('Missing X-Initialization-Vector header - required for decryption')
-            # Log all headers for debugging
-            logger.info(f'Available headers: {dict(request.headers)}')
-        else:
-            logger.info(f'IV from header length: {len(iv)} characters')
+            return HttpResponse('Missing IV header', status=400)
         
         # Try to get webhook secret from settings
         webhook_secret = None
@@ -391,7 +381,7 @@ def _handle_webhook_v2(request, event_data, event_body):
                             
                         if potential_secret:
                             webhook_secret = potential_secret
-                            logger.info(f"Using webhook secret from organizer '{organizer.slug}' settings")
+                            logger.debug(f"Using webhook secret from organizer '{organizer.slug}' settings")
                             break
                     except Exception as e:
                         logger.debug(f"Error accessing settings for organizer {organizer.slug}: {e}")
@@ -420,11 +410,11 @@ def _handle_webhook_v2(request, event_data, event_body):
         decrypted_data = _decrypt_webhook_data(event_data['data'], iv=iv, webhook_secret=webhook_secret)
         
         if decrypted_data:
-            logger.info('Webhook data decrypted successfully')
+            logger.debug('Webhook data decrypted successfully')
             try:
                 # Try to parse the decrypted data as JSON
                 decrypted_event_data = json.loads(decrypted_data)
-                logger.info(f'Parsed decrypted webhook data: {decrypted_event_data}')
+                logger.debug(f'Parsed decrypted webhook data successfully')
                 
                 # Recursively handle the webhook with decrypted data
                 # BUT keep the original encrypted payload in the request object
@@ -442,21 +432,21 @@ def _handle_webhook_v2(request, event_data, event_body):
     if 'transactions' in event_data:
         if isinstance(event_data['transactions'], list) and event_data['transactions']:
             transaction_data = event_data['transactions'][0]  # First transaction
-            logger.info(f'Using first transaction from array')
+            logger.debug(f'Using first transaction from array')
         elif isinstance(event_data['transactions'], dict):
             transaction_data = event_data['transactions']
-            logger.info(f'Using transactions dict directly')
+            logger.debug(f'Using transactions dict directly')
     else:
         # Direct format - the whole event_data is the transaction
         transaction_data = event_data
-        logger.info(f'Using entire event_data as transaction_data')
+        logger.debug(f'Using entire event_data as transaction_data')
     
     if not transaction_data:
         logger.warning('No transaction data found in webhook')
         return HttpResponseBadRequest('Missing transaction data')
     
     # Debug: log the structure we're working with
-    logger.info(f'Transaction data structure: {list(transaction_data.keys()) if isinstance(transaction_data, dict) else "not a dict"}')
+    logger.debug(f'Transaction data structure: {list(transaction_data.keys()) if isinstance(transaction_data, dict) else "not a dict"}')
     
     # Find payment by identifier
     # Check if transaction data is nested within a 'transaction' field
@@ -496,25 +486,9 @@ def _handle_webhook_v2(request, event_data, event_body):
     if webhook_signature:
         if provider and hasattr(provider, '_validate_webhook_signature'):
             # Log more information for debugging
-            if debug_mode:
-                logger.info(f'Validating webhook signature for payment: {payment.full_id}')
-                logger.info(f'Webhook signature from header: {webhook_signature[:20]}... (length: {len(webhook_signature)})')
-                
             # Use the RAW request body for signature validation (before any processing)
             # This is exactly what EuPago uses to calculate the signature
             raw_payload = getattr(request, '_eupago_original_raw_payload', event_body)
-            
-            if debug_mode:
-                logger.info(f'=== Signature Validation Debug ===')
-                logger.info(f'Using raw payload for validation (length: {len(raw_payload)})')
-                logger.info(f'Raw payload preview: {raw_payload[:100]}...')
-                logger.info(f'Webhook signature: {webhook_signature}')
-                
-                # Check payload format
-                if '"data":' in raw_payload:
-                    logger.info('Payload contains encrypted data field - this is correct for signature validation')
-                else:
-                    logger.info('Payload does not contain encrypted data field')
             
             is_valid = provider._validate_webhook_signature(raw_payload, webhook_signature)
             
@@ -522,7 +496,7 @@ def _handle_webhook_v2(request, event_data, event_body):
                 logger.warning(f'Invalid webhook signature for payment: {payment.full_id}')
                 if debug_mode:
                     # In debug mode, continue despite invalid signature
-                    logger.info('Continuing with invalid signature due to debug mode being enabled')
+                    logger.debug('Continuing with invalid signature due to debug mode being enabled')
                 else:
                     # In normal mode, reject the request
                     return HttpResponseBadRequest('Invalid signature')

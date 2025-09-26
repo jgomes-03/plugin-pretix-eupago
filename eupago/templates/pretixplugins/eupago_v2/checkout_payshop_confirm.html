@@ -3,52 +3,84 @@
 <div class="panel panel-default">
     <div class="panel-heading">
         <h4 class="panel-title">
+            <i class="fa fa-shopping-cart" style="margin-right: 8px; color: #dc3545;"></i>
             {% trans "PayShop Payment Reference" %}
         </h4>
     </div>
     <div class="panel-body">
-        <div class="alert alert-info">
-            <p><strong>{% trans "Payment Instructions:" %}</strong></p>
+        <div class="alert alert-success" style="border-left: 4px solid #dc3545;">
+            <h5><i class="fa fa-check-circle"></i> {% trans "Payment Reference Generated Successfully" %}</h5>
             <p>{% trans "Use the following reference to pay in cash at any PayShop location:" %}</p>
-            
-            <div class="payment-reference" style="background: #f5f5f5; padding: 15px; margin: 10px 0; border-radius: 5px;">
-                <div class="row">
-                    <div class="col-sm-6">
-                        <strong>{% trans "Reference:" %}</strong><br>
-                        <code id="payshop-reference" style="font-size: 18px;">{{ payment_info.reference|default:"123456789" }}</code>
-                    </div>
-                    <div class="col-sm-6">
-                        <strong>{% trans "Amount:" %}</strong><br>
-                        <code id="payshop-amount" style="font-size: 18px;">{{ payment.amount|money:event.currency }}</code>
+        </div>
+        
+        <div class="payment-reference" style="background: linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%); padding: 25px; margin: 20px 0; border-radius: 10px; border: 2px solid #dc3545; box-shadow: 0 4px 6px rgba(0,0,0,0.1);">
+            <div class="row">
+                <div class="col-sm-6">
+                    <div style="margin-bottom: 15px;">
+                        <label style="font-weight: bold; color: #495057; font-size: 14px;">
+                            <i class="fa fa-hashtag" style="margin-right: 5px;"></i>
+                            {% trans "Payment Reference:" %}
+                        </label>
+                        <div style="background: white; padding: 12px 16px; border-radius: 6px; border: 1px solid #dee2e6; margin-top: 5px; text-align: center;">
+                            <code id="payshop-reference" style="font-size: 24px; font-weight: bold; color: #dc3545; letter-spacing: 2px;">{{ payment_info.reference|default:"123456789" }}</code>
+                        </div>
                     </div>
                 </div>
-                <div class="row" style="margin-top: 10px;">
-                    <div class="col-sm-12">
-                        <strong>{% trans "Valid until:" %}</strong><br>
-                        <code>{{ payment_info.expires_at|default:"30 days" }}</code>
+                <div class="col-sm-6">
+                    <div style="margin-bottom: 15px;">
+                        <label style="font-weight: bold; color: #495057; font-size: 14px;">
+                            <i class="fa fa-euro" style="margin-right: 5px;"></i>
+                            {% trans "Amount to Pay:" %}
+                        </label>
+                        <div style="background: white; padding: 12px 16px; border-radius: 6px; border: 1px solid #dee2e6; margin-top: 5px; text-align: center;">
+                            <code id="payshop-amount" style="font-size: 24px; font-weight: bold; color: #28a745;">{{ payment.amount|money:event.currency }}</code>
+                        </div>
                     </div>
                 </div>
             </div>
-            
             <div class="row">
                 <div class="col-sm-12">
-                    <h5>{% trans "How to pay:" %}</h5>
-                    <ol>
-                        <li>{% trans "Go to any PayShop location (supermarkets, post offices, etc.)" %}</li>
-                        <li>{% trans "Tell the cashier you want to make a PayShop payment" %}</li>
-                        <li>{% trans "Provide the reference number above" %}</li>
-                        <li>{% trans "Pay the exact amount in cash" %}</li>
-                        <li>{% trans "Keep your receipt as proof of payment" %}</li>
-                    </ol>
-                    
-                    <p><small>{% trans "Your order will be confirmed automatically once payment is received (usually within a few minutes)." %}</small></p>
+                    <div style="text-align: center;">
+                        <label style="font-weight: bold; color: #495057; font-size: 14px;">
+                            <i class="fa fa-calendar" style="margin-right: 5px;"></i>
+                            {% trans "Valid until:" %}
+                        </label>
+                        <div style="background: white; padding: 8px 12px; border-radius: 6px; border: 1px solid #dee2e6; margin-top: 5px; display: inline-block;">
+                            <code style="font-size: 14px; color: #6c757d;">{{ payment_info.expires_at|default:"30 days" }}</code>
+                        </div>
+                    </div>
                 </div>
             </div>
         </div>
         
+        <div class="alert alert-info" style="margin-top: 20px;">
+            <h6><i class="fa fa-info-circle"></i> {% trans "How to Pay at PayShop:" %}</h6>
+            <div class="row">
+                <div class="col-sm-6">
+                    <ol style="padding-left: 20px;">
+                        <li>{% trans "Go to any PayShop location" %}</li>
+                        <li>{% trans "Tell the cashier: 'PayShop payment'" %}</li>
+                        <li>{% trans "Provide the reference number" %}</li>
+                    </ol>
+                </div>
+                <div class="col-sm-6">
+                    <ol start="4" style="padding-left: 20px;">
+                        <li>{% trans "Pay the exact amount in cash" %}</li>
+                        <li>{% trans "Keep your receipt" %}</li>
+                    </ol>
+                </div>
+            </div>
+            <div style="background: #e8f4fd; padding: 10px; border-radius: 5px; margin-top: 15px;">
+                <small><i class="fa fa-map-marker"></i> <strong>{% trans "Find locations:" %}</strong> {% trans "Supermarkets (Continente, Pingo Doce), Post offices (CTT), Gas stations, and many other locations display the PayShop logo." %}</small>
+            </div>
+            <hr style="margin: 15px 0;">
+            <small><i class="fa fa-clock-o"></i> {% trans "Your order will be confirmed automatically once payment is received (usually within a few minutes)." %}</small>
+        </div>
+        
         {% if provider.test_mode_message %}
             <div class="alert alert-warning">
-                <i class="fa fa-warning"></i>
+                <i class="fa fa-exclamation-triangle"></i>
+                <strong>{% trans "Test Mode" %}</strong><br>
                 {{ provider.test_mode_message }}
             </div>
         {% endif %}

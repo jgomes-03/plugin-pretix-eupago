@@ -3,43 +3,83 @@
 <div class="panel panel-default">
     <div class="panel-heading">
         <h4 class="panel-title">
+            <i class="fa fa-university" style="margin-right: 8px; color: #1e88e5;"></i>
             {% trans "Multibanco Payment Reference" %}
         </h4>
     </div>
     <div class="panel-body">
-        <div class="alert alert-info">
-            <p><strong>{% trans "Payment Instructions:" %}</strong></p>
+        <div class="alert alert-success" style="border-left: 4px solid #1e88e5;">
+            <h5><i class="fa fa-check-circle"></i> {% trans "Payment Reference Generated Successfully" %}</h5>
             <p>{% trans "Use the following reference to pay at any ATM, online banking, or Multibanco terminal:" %}</p>
-            
-            <div class="payment-reference" style="background: #f5f5f5; padding: 15px; margin: 10px 0; border-radius: 5px;">
-                <div class="row">
-                    <div class="col-sm-6">
-                        <strong>{% trans "Entity:" %}</strong><br>
-                        <code id="mb-entity">{{ payment_info.entity|default:"12345" }}</code>
-                    </div>
-                    <div class="col-sm-6">
-                        <strong>{% trans "Reference:" %}</strong><br>
-                        <code id="mb-reference">{{ payment_info.reference|default:"123 456 789" }}</code>
+        </div>
+        
+        <div class="payment-reference" style="background: linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%); padding: 25px; margin: 20px 0; border-radius: 10px; border: 2px solid #1e88e5; box-shadow: 0 4px 6px rgba(0,0,0,0.1);">
+            <div class="row">
+                <div class="col-sm-6">
+                    <div style="margin-bottom: 15px;">
+                        <label style="font-weight: bold; color: #495057; font-size: 14px;">
+                            <i class="fa fa-building" style="margin-right: 5px;"></i>
+                            {% trans "Entity:" %}
+                        </label>
+                        <div style="background: white; padding: 8px 12px; border-radius: 6px; border: 1px solid #dee2e6; margin-top: 5px;">
+                            <code id="mb-entity" style="font-size: 18px; font-weight: bold; color: #1e88e5;">{{ payment_info.entity|default:"12345" }}</code>
+                        </div>
                     </div>
                 </div>
-                <div class="row" style="margin-top: 10px;">
-                    <div class="col-sm-6">
-                        <strong>{% trans "Amount:" %}</strong><br>
-                        <code id="mb-amount">{{ payment.amount|money:event.currency }}</code>
-                    </div>
-                    <div class="col-sm-6">
-                        <strong>{% trans "Valid until:" %}</strong><br>
-                        <code>{{ payment_info.expires_at|default:"30 days" }}</code>
+                <div class="col-sm-6">
+                    <div style="margin-bottom: 15px;">
+                        <label style="font-weight: bold; color: #495057; font-size: 14px;">
+                            <i class="fa fa-hashtag" style="margin-right: 5px;"></i>
+                            {% trans "Reference:" %}
+                        </label>
+                        <div style="background: white; padding: 8px 12px; border-radius: 6px; border: 1px solid #dee2e6; margin-top: 5px;">
+                            <code id="mb-reference" style="font-size: 18px; font-weight: bold; color: #1e88e5;">{{ payment_info.reference|default:"123 456 789" }}</code>
+                        </div>
                     </div>
                 </div>
             </div>
-            
-            <p><small>{% trans "This payment reference is valid for 30 days. Your order will be confirmed automatically once payment is received." %}</small></p>
+            <div class="row">
+                <div class="col-sm-6">
+                    <div>
+                        <label style="font-weight: bold; color: #495057; font-size: 14px;">
+                            <i class="fa fa-euro" style="margin-right: 5px;"></i>
+                            {% trans "Amount:" %}
+                        </label>
+                        <div style="background: white; padding: 8px 12px; border-radius: 6px; border: 1px solid #dee2e6; margin-top: 5px;">
+                            <code id="mb-amount" style="font-size: 18px; font-weight: bold; color: #28a745;">{{ payment.amount|money:event.currency }}</code>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-sm-6">
+                    <div>
+                        <label style="font-weight: bold; color: #495057; font-size: 14px;">
+                            <i class="fa fa-calendar" style="margin-right: 5px;"></i>
+                            {% trans "Valid until:" %}
+                        </label>
+                        <div style="background: white; padding: 8px 12px; border-radius: 6px; border: 1px solid #dee2e6; margin-top: 5px;">
+                            <code style="font-size: 14px; color: #6c757d;">{{ payment_info.expires_at|default:"30 days" }}</code>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <div class="alert alert-info" style="margin-top: 20px;">
+            <h6><i class="fa fa-lightbulb-o"></i> {% trans "How to Pay:" %}</h6>
+            <ul style="margin-bottom: 0;">
+                <li>{% trans "Go to any ATM or use your online banking" %}</li>
+                <li>{% trans "Select 'Payments' or 'Pagamentos'" %}</li>
+                <li>{% trans "Enter the Entity and Reference numbers above" %}</li>
+                <li>{% trans "Confirm the amount and complete the payment" %}</li>
+            </ul>
+            <hr style="margin: 15px 0;">
+            <small><i class="fa fa-info-circle"></i> {% trans "Your order will be confirmed automatically once payment is received (usually within a few minutes)." %}</small>
         </div>
         
         {% if provider.test_mode_message %}
             <div class="alert alert-warning">
-                <i class="fa fa-warning"></i>
+                <i class="fa fa-exclamation-triangle"></i>
+                <strong>{% trans "Test Mode" %}</strong><br>
                 {{ provider.test_mode_message }}
             </div>
         {% endif %}

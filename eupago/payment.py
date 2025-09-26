@@ -92,13 +92,13 @@ class EuPagoBaseProvider(BasePaymentProvider):
         """
         # A verificação padrão do pretix já faz tudo que precisamos
         if not self.is_enabled:
-            logger.info(f"{self.identifier} is disabled")
+            logger.debug(f"{self.identifier} is disabled")
             return False
             
         # Verificações adicionais específicas do EuPago em ambiente de produção
         if self.get_setting('endpoint', 'sandbox') == 'live':
             if not self._check_settings():
-                logger.info(f"{self.identifier} has invalid settings for live environment")
+                logger.debug(f"{self.identifier} has invalid settings for live environment")
                 return False
                 
         logger.info(f"is_allowed for {self.identifier}: enabled=True")

@@ -1,7 +1,7 @@
 # EuPago Integration Payment Provider - Pretix
-## Versão 0.3
+## Versão 1.0
 
-Este plugin fornece integração completa com os métodos de pagamento EuPago para o sistema Pretix, seguindo as melhores práticas e padrões do framework.
+Este plugin fornece integração completa e moderna com os métodos de pagamento EuPago para o sistema Pretix, incluindo suporte completo para Webhooks 2.0 com encriptação AES-256-CBC e uma interface de utilizador melhorada.
 
 ## Índice
 - [Métodos de Pagamento Suportados](#métodos-de-pagamento-suportados)
@@ -27,9 +27,17 @@ Este plugin fornece integração completa com os métodos de pagamento EuPago pa
 
 ## Funcionalidades
 
+### ✨ **Novidades na v2.0.0**
+- 🔐 **Webhooks 2.0 com Encriptação** - Suporte completo para webhooks encriptados AES-256-CBC
+- 🎨 **Interface Moderna** - Templates redesenhados com melhor UX/UI
+- 🧹 **Logs Otimizados** - Sistema de logging limpo e eficiente
+- ✅ **Validação de Assinatura** - Implementação correta segundo documentação oficial EuPago
+- 📱 **MBWay Melhorado** - Interface simplificada e mais responsiva
+
+### 🚀 **Funcionalidades Principais**
 - ✅ **Suporte multi-método** - Todos os 4 métodos de pagamento EuPago
 - ✅ **Webhooks em tempo real** - Deteção e atualizações automáticas do estado de pagamento
-- ✅ **Página de Temporizador MBWay** - Contagem regressiva interativa de 5 minutos com verificação de estado em tempo real
+- ✅ **Interface melhorada** - Templates modernos com melhor formatação e ícones
 - ✅ **Consulta de estado API** - Mecanismo de reserva para webhooks perdidos
 - ✅ **Sandbox/Produção** - Suporte completo ao ambiente de testes
 - ✅ **Tratamento de erros** - Gestão e registo de erros abrangente
@@ -45,8 +53,8 @@ Este plugin deteta automaticamente quando os pagamentos são concluídos e atual
 ### Método Primário: Webhooks
 - **Notificações em tempo real** da EuPago quando o estado do pagamento muda
 - **Atualizações imediatas** - estado de pagamento atualizado segundos após a conclusão
-- **Validação segura** utilizando verificação de assinatura HMAC-SHA256
-- **Suporte para webhooks cifrados** (AES-256-CBC) com decifração automática (novidade na v1.2.0)
+- **Validação segura** utilizando verificação de assinatura HMAC-SHA256 (implementação correta na v2.0.0)
+- **Suporte completo para Webhooks 2.0** com encriptação AES-256-CBC
 - **Todos os métodos de pagamento suportados** (MBWay, Cartão de Crédito, Multibanco, PayShop)
 
 ### Método de Reserva: Consulta API  
@@ -228,7 +236,27 @@ Configure cron jobs para verificar automaticamente pagamentos pendentes:
 
 ## Registo de Alterações
 
-### v1.0.0
+### v1.0 - Interface Moderna e Webhooks 2.0 (Setembro 2025)
+#### 🎨 **Melhorias de Interface**
+- **Templates redesenhados** com interface moderna e ícones FontAwesome
+- **Multibanco** - Referências com melhor formatação visual e códigos de cor
+- **PayShop** - Layout otimizado com instruções passo-a-passo claras
+- **MBWay** - Interface simplificada e mais responsiva
+- **Mensagens melhoradas** - Alertas informativos e instruções mais claras
+
+#### 🔐 **Webhooks 2.0 e Segurança**
+- **Suporte completo Webhooks 2.0** - Encriptação AES-256-CBC
+- **Validação de assinatura corrigida** - Implementação exata da documentação oficial EuPago
+- **Decriptação automática** - Processamento seguro de payloads encriptados
+- **Processamento melhorado** - Extração correta de dados de transação aninhados
+
+#### 🧹 **Optimizações Técnicas**
+- **Sistema de logging otimizado** - Remoção de logs verbosos desnecessários
+- **Performance melhorada** - Código mais limpo e eficiente
+- **Debugging inteligente** - Logs essenciais mantidos, ruído removido
+- **Estabilidade aumentada** - Correções de bugs críticos
+
+### v0.1 a v0.4 - Alpha
 - Melhorias na página de temporizador MBWay
 - Otimização da validação de webhook
 - Correções de erros no processamento de cartão de crédito
