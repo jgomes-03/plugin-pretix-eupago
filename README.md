@@ -27,7 +27,7 @@ Este plugin fornece integração completa e moderna com os métodos de pagamento
 
 ## Funcionalidades
 
-### ✨ **Novidades na v2.0.0**
+### ✨ **Novidades na v1.0**
 - 🔐 **Webhooks 2.0 com Encriptação** - Suporte completo para webhooks encriptados AES-256-CBC
 - 🎨 **Interface Moderna** - Templates redesenhados com melhor UX/UI
 - 🧹 **Logs Otimizados** - Sistema de logging limpo e eficiente
