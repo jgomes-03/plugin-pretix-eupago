@@ -203,59 +203,57 @@ class EuPagoBaseProvider(BasePaymentProvider):
                     
             raise PaymentException(_('Payment provider communication failed. Please try again later.'))
 
-    def _validate_webhook_signature(self, request) -> bool:
+    def _validate_webhook_signature(self, payload: str, signature: str) -> bool:
         """
         EuPago Webhooks 2.0:
-        X-Signature = base64( HMAC_SHA256( key = webhook_secret, msg = <data field as string> ) )
+        - Se o corpo tiver {"data": "<base64>"}, a assinatura é HMAC-SHA256( key=webhook_secret,
+        msg=<string do campo data> ) e enviada em base64 (X-Signature).
+        - Se NÃO tiver "data" (encrypt=false), assina o corpo bruto (payload).
         """
-        import hmac, hashlib, base64, json, logging
+        import json, hmac, hashlib, base64, logging
         logger = logging.getLogger('pretix.plugins.eupago')
 
-        # 1) obter a key (a MESMA usada na desencriptação "direct", i.e., tal como fornecida pela EuPago)
+        # 1) obter a mesma chave usada na desencriptação "direct"
         webhook_secret = self.get_setting('webhook_secret') or ''
         if not webhook_secret:
             logger.warning('No webhook secret configured - skipping signature validation')
             return True
 
-        # 2) ler cabeçalho e corpo cru
-        sig_b64 = request.headers.get('X-Signature', '')
-        if not sig_b64:
+        if not signature:
             logger.warning('No webhook signature provided')
             return False
 
-        raw_body = request.body  # bytes, exatamente como recebido
+        # 2) decidir a mensagem a assinar
         try:
-            body = json.loads(raw_body.decode('utf-8'))
-        except Exception as e:
-            logger.error(f'Invalid JSON in webhook: {e}')
-            return False
-
-        # 3) extrair o string base64 do campo "data" (quando encrypt=true). Se não estiver encriptado, assinam o corpo inteiro.
-        msg_bytes: bytes
-        if isinstance(body, dict) and 'data' in body and isinstance(body['data'], str):
-            # AQUI ESTÁ O PONTO-CHAVE: assinar o *string* do campo data, tal como veio
-            msg_bytes = body['data'].encode('utf-8')
-        else:
-            # encrypt=false: assina o corpo bruto
-            msg_bytes = raw_body
-
-        # 4) HMAC-SHA256 com a key em bytes, comparar em binário (header vem em base64)
-        expected = hmac.new(webhook_secret.encode('utf-8'), msg_bytes, hashlib.sha256).digest()
-        try:
-            received = base64.b64decode(sig_b64)
+            body = json.loads(payload)
+            if isinstance(body, dict) and isinstance(body.get('data'), str):
+                # ENCRIPTADO: assina exatamente o string do campo "data"
+                msg_bytes = body['data'].encode('utf-8')
+            else:
+                # NÃO ENCRIPTADO: assina o corpo inteiro
+                msg_bytes = payload.encode('utf-8')
         except Exception:
-            logger.error('Failed to base64-decode X-Signature')
+            # JSON inválido → assina o corpo inteiro tal como chegou
+            msg_bytes = payload.encode('utf-8')
+
+        # 3) HMAC-SHA256 e comparação em tempo constante
+        expected_bin = hmac.new(webhook_secret.encode('utf-8'), msg_bytes, hashlib.sha256).digest()
+        try:
+            received_bin = base64.b64decode(signature)
+        except Exception as e:
+            logger.error(f'Failed to base64-decode X-Signature: {e}')
             return False
 
-        ok = hmac.compare_digest(expected, received)
+        ok = hmac.compare_digest(expected_bin, received_bin)
 
-        # debug opcional
-        if self.debug_mode or not ok:
-            logger.info(f'Expected signature (base64): {base64.b64encode(expected).decode()}')
-            logger.info(f'Received signature (base64): {sig_b64}')
+        # debug
+        if getattr(self, 'debug_mode', False) or not ok:
+            logger.info(f'Expected signature (base64): {base64.b64encode(expected_bin).decode()}')
+            logger.info(f'Received  signature (base64): {signature}')
             logger.info(f'Signatures match: {ok}')
 
         return ok
+
     
     def check_payment_status(self, payment: OrderPayment) -> dict:
         """Enhanced payment status check via API - using correct EuPago identifiers"""
