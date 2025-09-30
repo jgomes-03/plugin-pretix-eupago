@@ -1,0 +1,33 @@
+{% load i18n %}
+<div class="panel panel-primary">
+    <div class="panel-heading">
+        <h3 class="panel-title">{% trans "MBWay Payment" %}</h3>
+    </div>
+    <div class="panel-body">
+        <p>
+            <strong>{% trans "Payment Method:" %}</strong> {% trans "MBWay (EuPago)" %}
+        </p>
+        
+        <div class="alert alert-info">
+            <i class="fa fa-mobile"></i>
+            {% trans "A payment request has been sent to your mobile phone. Please check your MBWay app to complete the payment." %}
+        </div>
+        
+        <div class="alert alert-warning">
+            <i class="fa fa-clock-o"></i>
+            {% trans "This page will automatically update when your payment is confirmed. Please do not refresh the page." %}
+        </div>
+        
+        <div id="mbway-status" class="text-center">
+            <i class="fa fa-spinner fa-spin fa-2x"></i>
+            <p>{% trans "Waiting for MBWay confirmation..." %}</p>
+        </div>
+    </div>
+</div>
+
+<script>
+// Auto-refresh to check payment status
+setTimeout(function() {
+    location.reload();
+}, 10000); // Refresh every 10 seconds
+</script>

@@ -1,0 +1,24 @@
+{% load i18n %}
+<div class="panel panel-primary">
+    <div class="panel-heading">
+        <h3 class="panel-title">{% trans "MB and Credit Card Payment" %}</h3>
+    </div>
+    <div class="panel-body">
+        <p>
+            <strong>{% trans "Payment Method:" %}</strong> {% trans "MB and Credit Card (EuPago)" %}
+        </p>
+        <p>
+            <strong>{% trans "Amount:" %}</strong> {{ total|floatformat:2 }}€
+        </p>
+        
+        <div class="alert alert-info">
+            <i class="fa fa-credit-card"></i>
+            {% trans "After clicking 'Complete Order', you will be redirected to EuPago's secure payment page to complete your payment with Multibanco or Credit Card." %}
+        </div>
+        
+        <div class="alert alert-warning">
+            <i class="fa fa-exclamation-triangle"></i>
+            {% trans "Please do not close your browser or navigate away from the payment page until your payment is complete." %}
+        </div>
+    </div>
+</div>

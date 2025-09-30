@@ -10,12 +10,20 @@ DEFAULT_SETTINGS = {
     'endpoint': 'sandbox',
     'debug_mode': False,  # When enabled, provides additional debugging information and accepts more signature formats
     
-    # Method-specific settings
+    # Method-specific settings (legacy)
     'cc_description': 'Pay securely with your credit card',
     'mbway_description': 'Pay with MBWay using your mobile phone', 
     'multibanco_description': 'Pay via bank transfer using Multibanco reference',
     'payshop_description': 'Pay in cash at any PayShop location',
     'paybylink_description': 'Pay online with your preferred payment method',
+    
+    # New payment methods with dedicated configurations
+    'mb_creditcard_api_key': '',
+    'mb_creditcard_webhook_secret': '',
+    'mb_creditcard_description': 'Pay with MB or Credit Card',
+    'mbway_new_api_key': '',
+    'mbway_new_webhook_secret': '',
+    'mbway_new_description': 'Pay with MBWay using your mobile phone',
 }
 
 # API Endpoints
@@ -30,7 +38,9 @@ PAYMENT_METHODS = {
     'mbway': 'eupago_mbway', 
     'multibanco': 'eupago_multibanco',
     'payshop': 'eupago_payshop',
-    'paybylink': 'eupago_paybylink'
+    'paybylink': 'eupago_paybylink',
+    'mb_creditcard': 'eupago_mb_creditcard',  # New: MB and Credit Card
+    'mbway_new': 'eupago_mbway_new'          # New: MBWay with dedicated config
 }
 
 # API Endpoints for each payment method

@@ -1,3 +1,23 @@
+Metadata-Version: 2.4
+Name: pretix-eupago
+Version: 1.0
+Summary: EuPago payment provider for pretix
+Home-page: https://github.com/jgomes-03/plugin-pretix-eupago
+Author: Jorge Gomes
+Author-email: jorge.gomes211@gmail.com
+License: Proprietary
+License-File: LICENSE
+Requires-Dist: requests>=2.20.0
+Requires-Dist: pycryptodome>=3.15.0
+Dynamic: author
+Dynamic: author-email
+Dynamic: description
+Dynamic: home-page
+Dynamic: license
+Dynamic: license-file
+Dynamic: requires-dist
+Dynamic: summary
+
 # EuPago Integration Payment Provider - Pretix
 ## Versão 1.0
 

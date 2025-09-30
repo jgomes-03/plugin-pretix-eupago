@@ -72,4 +72,42 @@ class EuPagoGlobalSettingsHolder:
                 required=False,
                 widget=forms.TextInput(attrs={'placeholder': 'PayShop payment description'})
             ),
+            
+            # New payment methods - MB and Credit Card
+            'mb_creditcard_api_key': SecretKeySettingsField(
+                label=_('MB and Credit Card API Key'),
+                help_text=_('Dedicated API key for MB and Credit Card payments'),
+                required=False,
+            ),
+            'mb_creditcard_webhook_secret': SecretKeySettingsField(
+                label=_('MB and Credit Card Webhook Secret'),
+                help_text=_('Dedicated webhook secret for MB and Credit Card payments'),
+                required=False,
+            ),
+            'mb_creditcard_description': forms.CharField(
+                label=_('MB and Credit Card Description'),
+                help_text=_('Description shown to customers for MB and Credit Card payments'),
+                initial='Pay with MB or Credit Card',
+                required=False,
+                widget=forms.TextInput(attrs={'placeholder': 'MB and Credit Card payment description'})
+            ),
+            
+            # New payment methods - MBWay New
+            'mbway_new_api_key': SecretKeySettingsField(
+                label=_('MBWay New API Key'),
+                help_text=_('Dedicated API key for new MBWay payments'),
+                required=False,
+            ),
+            'mbway_new_webhook_secret': SecretKeySettingsField(
+                label=_('MBWay New Webhook Secret'),
+                help_text=_('Dedicated webhook secret for new MBWay payments'),
+                required=False,
+            ),
+            'mbway_new_description': forms.CharField(
+                label=_('MBWay New Description'),
+                help_text=_('Description shown to customers for new MBWay payments'),
+                initial='Pay with MBWay using your mobile phone',
+                required=False,
+                widget=forms.TextInput(attrs={'placeholder': 'MBWay payment description'})
+            ),
         }

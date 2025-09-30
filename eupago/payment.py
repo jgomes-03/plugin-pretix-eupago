@@ -1,10 +1,10 @@
+import base64
 import hashlib
 import hmac
 import json
 import logging
 import requests
 from collections import OrderedDict
-import json
 from decimal import Decimal
 from django import forms
 from django.core.exceptions import ValidationError
@@ -35,13 +35,23 @@ class EuPagoBaseProvider(BasePaymentProvider):
 
     def get_setting(self, name, default=None):
         """Get a setting with proper prefix handling"""
-        # First try with payment_eupago prefix (standard pretix convention)
+        # For the new payment methods, check for method-specific settings first
+        if hasattr(self, 'method_prefix'):
+            try:
+                # Use the organizer-level configuration without payment_ prefix
+                method_specific_value = self.organizer.settings.get(f'eupago_{self.method_prefix}_{name}', None)
+                if method_specific_value is not None:
+                    return method_specific_value
+            except Exception:
+                pass
+        
+        # First try with payment_eupago prefix (standard pretix convention for legacy settings)
         try:
             value = self.organizer.settings.get(f'payment_eupago_{name}', None)
         except Exception:
             value = None
         
-        # If not found, try with just eupago prefix (backward compatibility)
+        # If not found, try with just eupago prefix (organizer-level configuration)
         if value is None:
             try:
                 value = self.organizer.settings.get(f'eupago_{name}', default)
@@ -499,11 +509,13 @@ class EuPagoBaseProvider(BasePaymentProvider):
         
         results = []
         providers = [
-            EuPagoMBWay,
-            EuPagoMultibanco, 
-            EuPagoCreditCard,
-            EuPagoPayShop,
-            EuPagoPayByLink
+            EuPagoMBCreditCard,      # New: MB and Credit Card
+            EuPagoMBWayNew,          # New: MBWay with dedicated config
+            EuPagoMBWay,            # Legacy
+            EuPagoMultibanco,       # Legacy
+            EuPagoCreditCard,       # Legacy
+            EuPagoPayShop,          # Legacy
+            EuPagoPayByLink,        # Legacy
         ]
         
         try:
@@ -949,7 +961,7 @@ class EuPagoPayShop(EuPagoBaseProvider):
 
 class EuPagoPayByLink(EuPagoBaseProvider):
     identifier = 'eupago_paybylink'
-    verbose_name = _('Pagamento Online')
+    verbose_name = _('Pagamento Online (Legacy)')
     method = 'paybylink'
     payment_form_template_name = 'pretixplugins/eupago/checkout_payment_form_paybylink.html'
 
@@ -1187,3 +1199,423 @@ class EuPagoPayByLink(EuPagoBaseProvider):
             result['error'] = str(e)
             
         return result
+
+
+class EuPagoMBCreditCard(EuPagoBaseProvider):
+    """MB and Credit Card payment method with dedicated API key and webhook secret"""
+    identifier = 'eupago_mb_creditcard'
+    verbose_name = _('MB and Credit Card (EuPago)')
+    method = 'paybylink'
+    method_prefix = 'mb_creditcard'  # For method-specific settings
+    payment_form_template_name = 'pretixplugins/eupago/checkout_payment_form_mb_creditcard.html'
+
+    @property
+    def settings_form_fields(self):
+        """Settings form fields specific to MB and Credit Card method"""
+        base_fields = super().settings_form_fields
+        
+        from collections import OrderedDict
+        return OrderedDict(list(base_fields.items()) + [
+            ('mb_creditcard_api_key', SecretKeySettingsField(
+                label=_('MB and Credit Card API Key'),
+                help_text=_('Dedicated API key for MB and Credit Card payments'),
+                required=False,
+            )),
+            ('mb_creditcard_webhook_secret', SecretKeySettingsField(
+                label=_('MB and Credit Card Webhook Secret'),
+                help_text=_('Dedicated webhook secret for MB and Credit Card payments'),
+                required=False,
+            )),
+            ('mb_creditcard_description', forms.CharField(
+                label=_('Payment description'),
+                help_text=_('This will be displayed to customers during checkout'),
+                required=False,
+                initial=_('Pay with MB or Credit Card'),
+            )),
+        ])
+
+    def _get_headers(self, payment_method: str = None) -> dict:
+        """Override to use method-specific API key"""
+        headers = {'Content-Type': 'application/json'}
+        
+        # Use method-specific API key
+        api_key = self.get_setting("api_key")  # This will use the method-specific key due to get_setting override
+        
+        if api_key and payment_method:
+            from .config import AUTH_METHODS
+            if AUTH_METHODS.get(payment_method) == 'header':
+                headers['Authorization'] = f'Bearer {api_key}'
+                logger.debug(f'Adding method-specific API key to header for {payment_method}')
+            elif AUTH_METHODS.get(payment_method) == 'oauth':
+                headers['Authorization'] = f'Bearer {api_key}'
+                logger.debug(f'Adding method-specific Bearer token for {payment_method}')
+        
+        return headers
+
+    def _validate_webhook_signature(self, payload: str, signature: str) -> bool:
+        """Override to use method-specific webhook secret"""
+        import json, hmac, hashlib, base64, logging
+        logger = logging.getLogger('pretix.plugins.eupago')
+
+        # Use method-specific webhook secret
+        webhook_secret = self.get_setting('webhook_secret') or ''
+        if not webhook_secret:
+            logger.warning('No MB/Credit Card webhook secret configured - skipping signature validation')
+            return True
+
+        if not signature:
+            logger.warning('No webhook signature provided')
+            return False
+
+        # 2) decidir a mensagem a assinar
+        try:
+            body = json.loads(payload)
+            if isinstance(body, dict) and isinstance(body.get('data'), str):
+                # ENCRIPTADO: assina exatamente o string do campo "data"
+                msg_bytes = body['data'].encode('utf-8')
+            else:
+                # NÃO ENCRIPTADO: assina o corpo inteiro
+                msg_bytes = payload.encode('utf-8')
+        except Exception:
+            # JSON inválido → assina o corpo inteiro tal como chegou
+            msg_bytes = payload.encode('utf-8')
+
+        # 3) HMAC-SHA256 e comparação em tempo constante
+        expected_bin = hmac.new(webhook_secret.encode('utf-8'), msg_bytes, hashlib.sha256).digest()
+        try:
+            received_bin = base64.b64decode(signature)
+        except Exception as e:
+            logger.error(f'Failed to base64-decode X-Signature: {e}')
+            return False
+
+        ok = hmac.compare_digest(expected_bin, received_bin)
+
+        # debug
+        if getattr(self, 'debug_mode', False) or not ok:
+            logger.info(f'Expected signature (base64): {base64.b64encode(expected_bin).decode()}')
+            logger.info(f'Received  signature (base64): {signature}')
+            logger.info(f'Signatures match: {ok}')
+
+        return ok
+
+    def execute_payment(self, request: HttpRequest, payment: OrderPayment):
+        """Execute MB and Credit Card payment using PayByLink"""
+        from .config import API_ENDPOINTS
+        
+        logger.info(f'EuPagoMBCreditCard.execute_payment called for {payment.full_id} - Amount: €{payment.amount}')
+        
+        # Build return URLs
+        return_url_base = build_absolute_uri(
+            self.event,
+            'plugins:eupago:return',
+            kwargs={
+                'order': payment.order.code,
+                'hash': payment.order.tagged_secret('plugins:eupago'),
+                'payment': payment.pk,
+            }
+        )
+        
+        success_url = build_absolute_uri(
+            self.event,
+            'plugins:eupago:return_with_status',
+            kwargs={
+                'order': payment.order.code,
+                'hash': payment.order.tagged_secret('plugins:eupago'),
+                'payment': payment.pk,
+                'status': 'success'
+            }
+        )
+        
+        fail_url = build_absolute_uri(
+            self.event,
+            'plugins:eupago:return_with_status',
+            kwargs={
+                'order': payment.order.code,
+                'hash': payment.order.tagged_secret('plugins:eupago'),
+                'payment': payment.pk,
+                'status': 'fail'
+            }
+        )
+        
+        back_url = build_absolute_uri(
+            self.event,
+            'plugins:eupago:return_with_status',
+            kwargs={
+                'order': payment.order.code,
+                'hash': payment.order.tagged_secret('plugins:eupago'),
+                'payment': payment.pk,
+                'status': 'back'
+            }
+        )
+        
+        data = {
+            'payment': {
+                'amount': {
+                    'currency': 'EUR',
+                    'value': float(payment.amount)
+                },
+                'identifier': payment.full_id,
+                'successUrl': success_url,
+                'failUrl': fail_url,
+                'backUrl': back_url
+            },
+            'urlReturn': return_url_base,
+            'urlCallback': request.build_absolute_uri(reverse('plugins:eupago:webhook'))
+        }
+        
+        # Add custom description if configured
+        description = self.get_setting('description') or 'Pay with MB or Credit Card'
+        data['payment']['description'] = description
+
+        try:
+            logger.info(f'Creating MB/Credit Card payment for {payment.full_id}: €{payment.amount}')
+            
+            response = self._make_api_request(
+                API_ENDPOINTS['paybylink'], 
+                data, 
+                payment_method='paybylink'
+            )
+            
+            logger.info(f'MB/Credit Card API response for {payment.full_id}: {response}')
+            
+            # Extract payment URL from response
+            payment_url = (response.get('url') or 
+                          response.get('redirect_url') or 
+                          response.get('link') or 
+                          response.get('paymentUrl') or 
+                          response.get('redirectUrl'))
+                          
+            if isinstance(response.get('data'), dict):
+                payment_url = payment_url or response.get('data').get('paymentUrl')
+            
+            if payment_url:
+                payment_info = {
+                    'payment_url': payment_url,
+                    'transaction_id': (response.get('transactionId') or response.get('id') or
+                                     (response.get('data', {}).get('transactionId') if isinstance(response.get('data'), dict) else None)),
+                    'reference': (response.get('referencia') or response.get('reference') or
+                                (response.get('data', {}).get('reference') if isinstance(response.get('data'), dict) else None)),
+                    'api_response': response,
+                    'method': 'mb_creditcard'
+                }
+                
+                payment.info = json.dumps(payment_info)
+                payment.state = OrderPayment.PAYMENT_STATE_PENDING
+                payment.save(update_fields=['info', 'state'])
+                
+                logger.info(f'MB/Credit Card payment {payment.full_id} initialized successfully')
+                return payment_url
+            else:
+                error_msg = response.get('error') or response.get('message') or 'No payment URL returned'
+                logger.error(f'MB/Credit Card payment initialization failed for {payment.full_id}: {error_msg}')
+                raise PaymentException(_('Payment initialization failed: {}').format(error_msg))
+                
+        except PaymentException:
+            raise
+        except Exception as e:
+            logger.error(f'MB/Credit Card payment failed for {payment.full_id}: {e}', exc_info=True)
+            payment.fail(info={'error': str(e), 'method': 'mb_creditcard'})
+            raise PaymentException(_('Payment failed. Please try again later.'))
+
+    def checkout_confirm_render(self, request, **kwargs):
+        """Render confirmation for MB and Credit Card payment"""
+        logger.info(f'EuPagoMBCreditCard.checkout_confirm_render called for event: {self.event.slug}')
+        
+        template = get_template('pretixplugins/eupago/checkout_payment_confirm_mb_creditcard.html')
+        ctx = {
+            'request': request, 
+            'event': self.event,
+            'settings': self.settings,
+            'provider': self,
+            'total': request.session.get('cart_total', 0)
+        }
+        
+        rendered = template.render(ctx)
+        logger.info(f'EuPagoMBCreditCard.checkout_confirm_render - template rendered successfully')
+        
+        return rendered
+
+
+class EuPagoMBWayNew(EuPagoBaseProvider):
+    """New MBWay payment method with dedicated API key and webhook secret"""
+    identifier = 'eupago_mbway_new'
+    verbose_name = _('MBWay (EuPago)')
+    method = 'mbway'
+    method_prefix = 'mbway_new'  # For method-specific settings
+
+    @property
+    def payment_form_fields(self):
+        from collections import OrderedDict
+        return OrderedDict([
+            ('phone', forms.CharField(
+                label=_('Mobile phone number'),
+                max_length=15,
+                help_text=_('Enter your mobile phone number for MBWay payment')
+            )),
+        ])
+
+    @property
+    def settings_form_fields(self):
+        """Settings form fields specific to new MBWay method"""
+        base_fields = super().settings_form_fields
+        
+        from collections import OrderedDict
+        return OrderedDict(list(base_fields.items()) + [
+            ('mbway_new_api_key', SecretKeySettingsField(
+                label=_('MBWay API Key'),
+                help_text=_('Dedicated API key for MBWay payments'),
+                required=False,
+            )),
+            ('mbway_new_webhook_secret', SecretKeySettingsField(
+                label=_('MBWay Webhook Secret'),
+                help_text=_('Dedicated webhook secret for MBWay payments'),
+                required=False,
+            )),
+            ('mbway_new_description', forms.CharField(
+                label=_('Payment description'),
+                help_text=_('This will be displayed to customers during checkout'),
+                required=False,
+                initial=_('Pay with MBWay using your mobile phone'),
+            )),
+        ])
+
+    def _get_headers(self, payment_method: str = None) -> dict:
+        """Override to use method-specific API key"""
+        headers = {'Content-Type': 'application/json'}
+        
+        # Use method-specific API key
+        api_key = self.get_setting("api_key")  # This will use the method-specific key due to get_setting override
+        
+        if api_key and payment_method:
+            from .config import AUTH_METHODS
+            if AUTH_METHODS.get(payment_method) == 'header':
+                headers['Authorization'] = f'Bearer {api_key}'
+                logger.debug(f'Adding method-specific API key to header for {payment_method}')
+            elif AUTH_METHODS.get(payment_method) == 'oauth':
+                headers['Authorization'] = f'Bearer {api_key}'
+                logger.debug(f'Adding method-specific Bearer token for {payment_method}')
+        
+        return headers
+
+    def _validate_webhook_signature(self, payload: str, signature: str) -> bool:
+        """Override to use method-specific webhook secret"""
+        import json, hmac, hashlib, base64, logging
+        logger = logging.getLogger('pretix.plugins.eupago')
+
+        # Use method-specific webhook secret
+        webhook_secret = self.get_setting('webhook_secret') or ''
+        if not webhook_secret:
+            logger.warning('No MBWay webhook secret configured - skipping signature validation')
+            return True
+
+        if not signature:
+            logger.warning('No webhook signature provided')
+            return False
+
+        # 2) decidir a mensagem a assinar
+        try:
+            body = json.loads(payload)
+            if isinstance(body, dict) and isinstance(body.get('data'), str):
+                # ENCRIPTADO: assina exatamente o string do campo "data"
+                msg_bytes = body['data'].encode('utf-8')
+            else:
+                # NÃO ENCRIPTADO: assina o corpo inteiro
+                msg_bytes = payload.encode('utf-8')
+        except Exception:
+            msg_bytes = payload.encode('utf-8')
+
+        # 3) HMAC-SHA256 e comparação em tempo constante
+        expected_bin = hmac.new(webhook_secret.encode('utf-8'), msg_bytes, hashlib.sha256).digest()
+        try:
+            received_bin = base64.b64decode(signature)
+        except Exception as e:
+            logger.error(f'Failed to base64-decode X-Signature: {e}')
+            return False
+
+        ok = hmac.compare_digest(expected_bin, received_bin)
+
+        # debug
+        if getattr(self, 'debug_mode', False) or not ok:
+            logger.info(f'Expected signature (base64): {base64.b64encode(expected_bin).decode()}')
+            logger.info(f'Received  signature (base64): {signature}')
+            logger.info(f'Signatures match: {ok}')
+
+        return ok
+
+    def execute_payment(self, request: HttpRequest, payment: OrderPayment):
+        """Execute MBWay payment"""
+        from .config import API_ENDPOINTS
+        from pretix.multidomain.urlreverse import build_absolute_uri
+        
+        # Get phone number from various sources
+        phone = None
+        phone = (request.session.get(f'payment_{self.identifier}_phone') or
+                request.POST.get('phone') or
+                request.session.get('payment_eupago_mbway_new_phone') or
+                request.session.get('phone'))
+        
+        logger.debug(f'Final phone value for MBWay New: {phone}')
+        
+        if not phone:
+            raise PaymentException(_('Phone number is required for MBWay payments'))
+
+        # Use the correct EuPago API structure from documentation
+        data = {
+            "payment": {
+                "amount": {
+                    "currency": "EUR",
+                    "value": float(payment.amount)
+                },
+                "customerPhone": phone,
+                "identifier": payment.full_id,
+                "countryCode": "+351",  # Default to Portugal
+                "webhookUrl": request.build_absolute_uri(reverse('plugins:eupago:webhook'))
+            }
+        }
+        
+        logger.debug(f'MBWay New request data: {data}')
+
+        try:
+            response = self._make_api_request(
+                API_ENDPOINTS['mbway'], 
+                data, 
+                payment_method='mbway'
+            )
+            
+            logger.debug(f'MBWay New response: {response}')
+            
+            if response.get('estado') == 'Pendente' or response.get('transactionStatus') == 'Success':
+                logger.info(f'MBWay New payment {payment.full_id} initialized successfully - waiting for customer to pay')
+                
+                # Store payment info
+                payment_info = {
+                    'phone': phone,
+                    'transaction_id': response.get('transactionId') or response.get('id'),
+                    'reference': response.get('referencia') or response.get('reference'),
+                    'api_response': response,
+                    'method': 'mbway_new'
+                }
+                
+                payment.info = json.dumps(payment_info)
+                payment.state = OrderPayment.PAYMENT_STATE_PENDING
+                payment.save(update_fields=['info', 'state'])
+                
+                return None  # Stay on same page, waiting for MBWay confirmation
+            else:
+                raise PaymentException(_('MBWay payment initialization failed'))
+                
+        except Exception as e:
+            logger.error(f'MBWay New payment failed: {e}')
+            payment.fail(info={'error': str(e)})
+            raise PaymentException(_('MBWay payment failed. Please try again.'))
+
+    def checkout_confirm_render(self, request, **kwargs):
+        """Render confirmation for new MBWay payment"""
+        template = get_template('pretixplugins/eupago/checkout_payment_confirm_mbway_new.html')
+        ctx = {
+            'request': request,
+            'event': self.event,
+            'settings': self.settings,
+            'provider': self,
+        }
+        return template.render(ctx)
