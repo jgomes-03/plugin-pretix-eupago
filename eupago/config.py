@@ -50,7 +50,8 @@ API_ENDPOINTS = {
     'mbway': '/api/v1.02/mbway/create',
     'multibanco': '/clientes/rest_api/multibanco/create',
     'payshop': '/clientes/rest_api/payshop/create',
-    'paybylink': '/api/v1.02/paybylink/create'
+    'paybylink': '/api/v1.02/paybylink/create',
+    'mbway_paybylink': '/api/v1.02/paybylink/create'  # MBWay via PayByLink
 }
 
 # Required parameters for each payment method
@@ -64,12 +65,13 @@ REQUIRED_PARAMS = {
 
 # Authentication methods for each payment type
 AUTH_METHODS = {
-    'creditcard': 'header',  # API Key in header
-    'mbway': 'header',       # API Key in header  
-    'multibanco': 'body',    # API Key in body
-    'payshop': 'body',       # API Key in body
-    'paybylink': 'header',   # API Key in header
-    'auth_token': 'oauth'    # OAuth 2.0
+    'creditcard': 'header',     # API Key in header
+    'mbway': 'header',          # API Key in header  
+    'multibanco': 'body',       # API Key in body
+    'payshop': 'body',          # API Key in body
+    'paybylink': 'header',      # API Key in header
+    'mbway_paybylink': 'header', # API Key in header (MBWay via PayByLink)
+    'auth_token': 'oauth'       # OAuth 2.0
 }
 
 # Supported currencies

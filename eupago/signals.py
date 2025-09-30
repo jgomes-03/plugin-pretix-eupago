@@ -22,16 +22,16 @@ def register_payment_provider(sender, **kwargs):
     logger.info('Registering EuPago v2 payment providers')
     
     return [
-        # New payment methods (with dedicated API keys and webhook secrets)
+        # New payment methods (all use organizer-level API keys and webhook secrets)
         EuPagoMBCreditCard,
-        EuPagoMBWayNew,
+        EuPagoMBWayNew,  # MBWay via PayByLink - now preferred method
         
-        # Legacy/existing methods (use default API key and webhook secret)
+        # Legacy/existing methods (also use organizer-level configuration)
         EuPagoCreditCard,
-        EuPagoMBWay, 
+        EuPagoMBWay,  # Legacy MBWay (direct API) 
         EuPagoMultibanco,
         EuPagoPayShop,
-        EuPagoPayByLink,
+        EuPagoPayByLink,  # Generic PayByLink (available as Legacy)
     ]
 
 

@@ -34,17 +34,8 @@ class EuPagoBaseProvider(BasePaymentProvider):
         self.organizer = event.organizer
 
     def get_setting(self, name, default=None):
-        """Get a setting with proper prefix handling"""
-        # For the new payment methods, check for method-specific settings first
-        if hasattr(self, 'method_prefix'):
-            try:
-                # Use the organizer-level configuration without payment_ prefix
-                method_specific_value = self.organizer.settings.get(f'eupago_{self.method_prefix}_{name}', None)
-                if method_specific_value is not None:
-                    return method_specific_value
-            except Exception:
-                pass
-        
+        """Get a setting from organizer-level configuration"""
+        # All payment methods now use the same organizer-level configuration
         # First try with payment_eupago prefix (standard pretix convention for legacy settings)
         try:
             value = self.organizer.settings.get(f'payment_eupago_{name}', None)
@@ -839,7 +830,7 @@ class EuPagoMBWay(EuPagoBaseProvider):
 
 class EuPagoMultibanco(EuPagoBaseProvider):
     identifier = 'eupago_multibanco'
-    verbose_name = _('Multibanco (EuPago)')
+    verbose_name = _('Multibanco Legacy (EuPago)')
     method = 'multibanco'
 
     @property
@@ -1202,37 +1193,16 @@ class EuPagoPayByLink(EuPagoBaseProvider):
 
 
 class EuPagoMBCreditCard(EuPagoBaseProvider):
-    """MB and Credit Card payment method with dedicated API key and webhook secret"""
+    """MB and Credit Card payment method using organizer-level configuration"""
     identifier = 'eupago_mb_creditcard'
     verbose_name = _('MB and Credit Card (EuPago)')
     method = 'paybylink'
-    method_prefix = 'mb_creditcard'  # For method-specific settings
     payment_form_template_name = 'pretixplugins/eupago/checkout_payment_form_mb_creditcard.html'
 
     @property
     def settings_form_fields(self):
-        """Settings form fields specific to MB and Credit Card method"""
-        base_fields = super().settings_form_fields
-        
-        from collections import OrderedDict
-        return OrderedDict(list(base_fields.items()) + [
-            ('mb_creditcard_api_key', SecretKeySettingsField(
-                label=_('MB and Credit Card API Key'),
-                help_text=_('Dedicated API key for MB and Credit Card payments'),
-                required=False,
-            )),
-            ('mb_creditcard_webhook_secret', SecretKeySettingsField(
-                label=_('MB and Credit Card Webhook Secret'),
-                help_text=_('Dedicated webhook secret for MB and Credit Card payments'),
-                required=False,
-            )),
-            ('mb_creditcard_description', forms.CharField(
-                label=_('Payment description'),
-                help_text=_('This will be displayed to customers during checkout'),
-                required=False,
-                initial=_('Pay with MB or Credit Card'),
-            )),
-        ])
+        """Use base settings form fields - no method-specific configuration needed"""
+        return super().settings_form_fields
 
     def _get_headers(self, payment_method: str = None) -> dict:
         """Override to use method-specific API key"""
@@ -1437,47 +1407,21 @@ class EuPagoMBCreditCard(EuPagoBaseProvider):
 
 
 class EuPagoMBWayNew(EuPagoBaseProvider):
-    """New MBWay payment method with dedicated API key and webhook secret"""
+    """New MBWay payment method via PayByLink using organizer-level configuration"""
     identifier = 'eupago_mbway_new'
-    verbose_name = _('MBWay (EuPago)')
-    method = 'mbway'
-    method_prefix = 'mbway_new'  # For method-specific settings
+    verbose_name = _('MBWay')
+    method = 'mbway_paybylink'
 
     @property
     def payment_form_fields(self):
+        """No form fields needed - phone number will be entered on EuPago's page"""
         from collections import OrderedDict
-        return OrderedDict([
-            ('phone', forms.CharField(
-                label=_('Mobile phone number'),
-                max_length=15,
-                help_text=_('Enter your mobile phone number for MBWay payment')
-            )),
-        ])
+        return OrderedDict()
 
     @property
     def settings_form_fields(self):
-        """Settings form fields specific to new MBWay method"""
-        base_fields = super().settings_form_fields
-        
-        from collections import OrderedDict
-        return OrderedDict(list(base_fields.items()) + [
-            ('mbway_new_api_key', SecretKeySettingsField(
-                label=_('MBWay API Key'),
-                help_text=_('Dedicated API key for MBWay payments'),
-                required=False,
-            )),
-            ('mbway_new_webhook_secret', SecretKeySettingsField(
-                label=_('MBWay Webhook Secret'),
-                help_text=_('Dedicated webhook secret for MBWay payments'),
-                required=False,
-            )),
-            ('mbway_new_description', forms.CharField(
-                label=_('Payment description'),
-                help_text=_('This will be displayed to customers during checkout'),
-                required=False,
-                initial=_('Pay with MBWay using your mobile phone'),
-            )),
-        ])
+        """Use base settings form fields - no method-specific configuration needed"""
+        return super().settings_form_fields
 
     def _get_headers(self, payment_method: str = None) -> dict:
         """Override to use method-specific API key"""
@@ -1543,79 +1487,169 @@ class EuPagoMBWayNew(EuPagoBaseProvider):
         return ok
 
     def execute_payment(self, request: HttpRequest, payment: OrderPayment):
-        """Execute MBWay payment"""
+        """Execute MBWay payment via PayByLink"""
         from .config import API_ENDPOINTS
         from pretix.multidomain.urlreverse import build_absolute_uri
         
-        # Get phone number from various sources
-        phone = None
-        phone = (request.session.get(f'payment_{self.identifier}_phone') or
-                request.POST.get('phone') or
-                request.session.get('payment_eupago_mbway_new_phone') or
-                request.session.get('phone'))
+        logger.info(f'EuPagoMBWayNew.execute_payment called for {payment.full_id} - Amount: €{payment.amount}')
         
-        logger.debug(f'Final phone value for MBWay New: {phone}')
-        
-        if not phone:
-            raise PaymentException(_('Phone number is required for MBWay payments'))
-
-        # Use the correct EuPago API structure from documentation
-        data = {
-            "payment": {
-                "amount": {
-                    "currency": "EUR",
-                    "value": float(payment.amount)
-                },
-                "customerPhone": phone,
-                "identifier": payment.full_id,
-                "countryCode": "+351",  # Default to Portugal
-                "webhookUrl": request.build_absolute_uri(reverse('plugins:eupago:webhook'))
+        # Construir as URLs de retorno usando o mesmo padrão do PayByLink
+        return_url_base = build_absolute_uri(
+            self.event,
+            'plugins:eupago:return',
+            kwargs={
+                'order': payment.order.code,
+                'hash': payment.order.tagged_secret('plugins:eupago'),
+                'payment': payment.pk,
             }
+        )
+        
+        # URLs para os diferentes status
+        success_url = build_absolute_uri(
+            self.event,
+            'plugins:eupago:return_with_status',
+            kwargs={
+                'order': payment.order.code,
+                'hash': payment.order.tagged_secret('plugins:eupago'),
+                'payment': payment.pk,
+                'status': 'success'
+            }
+        )
+        
+        fail_url = build_absolute_uri(
+            self.event,
+            'plugins:eupago:return_with_status',
+            kwargs={
+                'order': payment.order.code,
+                'hash': payment.order.tagged_secret('plugins:eupago'),
+                'payment': payment.pk,
+                'status': 'fail'
+            }
+        )
+        
+        back_url = build_absolute_uri(
+            self.event,
+            'plugins:eupago:return_with_status',
+            kwargs={
+                'order': payment.order.code,
+                'hash': payment.order.tagged_secret('plugins:eupago'),
+                'payment': payment.pk,
+                'status': 'back'
+            }
+        )
+        
+        # Usar PayByLink API com preferência para MBWay
+        data = {
+            'payment': {
+                'amount': {
+                    'currency': 'EUR',
+                    'value': float(payment.amount)
+                },
+                'identifier': payment.full_id,
+                'successUrl': success_url,
+                'failUrl': fail_url,
+                'backUrl': back_url,
+                'preferredMethod': 'mbway'  # Sugestão para mostrar MBWay como opção principal
+            },
+            'urlReturn': return_url_base,
+            'urlCallback': request.build_absolute_uri(reverse('plugins:eupago:webhook'))
         }
         
-        logger.debug(f'MBWay New request data: {data}')
+        # Adicionar descrição personalizada se configurada
+        mbway_description = self.get_setting('mbway_new_description') or self.get_setting('mbway_description')
+        if mbway_description:
+            data['payment']['description'] = mbway_description
 
         try:
+            logger.info(f'Creating MBWay PayByLink payment for {payment.full_id}: €{payment.amount}')
+            logger.info(f'MBWay PayByLink data being sent: {data}')
+            
             response = self._make_api_request(
-                API_ENDPOINTS['mbway'], 
+                API_ENDPOINTS['paybylink'], 
                 data, 
-                payment_method='mbway'
+                payment_method='paybylink'  # Use PayByLink endpoint
             )
             
-            logger.debug(f'MBWay New response: {response}')
+            logger.info(f'MBWay PayByLink API response for {payment.full_id}: {response}')
             
-            if response.get('estado') == 'Pendente' or response.get('transactionStatus') == 'Success':
-                logger.info(f'MBWay New payment {payment.full_id} initialized successfully - waiting for customer to pay')
+            # Verificar se a resposta contém URL de pagamento
+            payment_url = None
+            
+            # Check for URL in different response structures
+            if response.get('url'):
+                payment_url = response.get('url')
+            elif response.get('redirect_url'):
+                payment_url = response.get('redirect_url')
+            elif response.get('link'):
+                payment_url = response.get('link')
+            elif response.get('paymentUrl'):
+                payment_url = response.get('paymentUrl')
+            elif response.get('redirectUrl'):
+                payment_url = response.get('redirectUrl')
+            elif isinstance(response.get('data'), dict) and response.get('data').get('paymentUrl'):
+                payment_url = response.get('data').get('paymentUrl')
                 
-                # Store payment info
+            logger.info(f'Extracted MBWay payment URL: {payment_url}')
+            
+            if payment_url:
+                # Guardar informações do pagamento
                 payment_info = {
-                    'phone': phone,
-                    'transaction_id': response.get('transactionId') or response.get('id'),
-                    'reference': response.get('referencia') or response.get('reference'),
+                    'payment_url': payment_url,
+                    'transaction_id': (
+                        response.get('transactionId') or 
+                        response.get('id') or 
+                        (response.get('data', {}).get('transactionId') if isinstance(response.get('data'), dict) else None)
+                    ),
+                    'reference': (
+                        response.get('referencia') or 
+                        response.get('reference') or 
+                        (response.get('data', {}).get('reference') if isinstance(response.get('data'), dict) else None)
+                    ),
                     'api_response': response,
-                    'method': 'mbway_new'
+                    'method': 'mbway_paybylink',
+                    'preferred_method': 'mbway'
                 }
                 
                 payment.info = json.dumps(payment_info)
                 payment.state = OrderPayment.PAYMENT_STATE_PENDING
                 payment.save(update_fields=['info', 'state'])
                 
-                return None  # Stay on same page, waiting for MBWay confirmation
+                logger.info(f'MBWay PayByLink payment {payment.full_id} initialized successfully')
+                # NOTE: This payment is only set to PENDING state here.
+                # The payment will be confirmed ONLY when we receive a webhook notification
+                # from EuPago, not from the success URL redirect.
+                return payment_url
             else:
-                raise PaymentException(_('MBWay payment initialization failed'))
+                error_msg = response.get('error') or response.get('message') or 'No payment URL returned'
+                logger.error(f'MBWay PayByLink payment initialization failed for {payment.full_id}: {error_msg}')
+                raise PaymentException(_('MBWay payment initialization failed: {}').format(error_msg))
                 
+        except PaymentException:
+            raise  # Re-raise PaymentExceptions
         except Exception as e:
-            logger.error(f'MBWay New payment failed: {e}')
-            payment.fail(info={'error': str(e)})
-            raise PaymentException(_('MBWay payment failed. Please try again.'))
+            logger.error(f'MBWay PayByLink payment failed for {payment.full_id}: {e}', exc_info=True)
+            payment.fail(info={'error': str(e), 'method': 'mbway_paybylink'})
+            raise PaymentException(_('MBWay payment failed. Please try again later.'))
 
     def checkout_confirm_render(self, request, **kwargs):
-        """Render confirmation for new MBWay payment"""
-        template = get_template('pretixplugins/eupago/checkout_payment_confirm_mbway_new.html')
+        """Render confirmation for MBWay PayByLink payment"""
+        logger.info(f'EuPagoMBWayNew.checkout_confirm_render called for event: {self.event.slug}')
+        
+        template = get_template('pretixplugins/eupago/checkout_payment_confirm_paybylink.html')
         ctx = {
-            'request': request,
+            'request': request, 
             'event': self.event,
             'settings': self.settings,
             'provider': self,
+            'method_name': _('MBWay'),
+            'payment_description': self.get_setting('mbway_new_description') or self.get_setting('mbway_description') or _('Pay with MBWay using your mobile phone'),
         }
         return template.render(ctx)
+        
+    def checkout_prepare(self, request, cart):
+        """Prepare checkout for MBWay PayByLink payment"""
+        return True  # No special preparation needed
+    
+    def payment_is_valid_session(self, request):
+        """Check if payment session is valid"""
+        return True  # PayByLink payments are handled externally

@@ -13,10 +13,10 @@
     
     <div class="panel panel-default">
         <div class="panel-heading">
-            <h3 class="panel-title">{% trans "General API Configuration" %}</h3>
+            <h3 class="panel-title">{% trans "API Configuration" %}</h3>
         </div>
         <div class="panel-body">
-            <p class="text-muted">{% trans "General settings for all EuPago payment methods (legacy and fallback configurations)" %}</p>
+            <p class="text-muted">{% trans "Configuration for all EuPago payment methods. MB/Credit Card and MBWay will use these settings." %}</p>
             {% bootstrap_field form.eupago_api_key %}
             {% bootstrap_field form.eupago_client_id %}
             {% bootstrap_field form.eupago_client_secret %}
@@ -24,28 +24,6 @@
             {% bootstrap_field form.eupago_channel_id %}
             {% bootstrap_field form.eupago_endpoint %}
             {% bootstrap_field form.eupago_debug_mode %}
-        </div>
-    </div>
-
-    <div class="panel panel-primary">
-        <div class="panel-heading">
-            <h3 class="panel-title">{% trans "MB/Credit Card Configuration" %}</h3>
-        </div>
-        <div class="panel-body">
-            <p class="text-muted">{% trans "Dedicated configuration for MB and Credit Card payments. If not configured, will use general settings above." %}</p>
-            {% bootstrap_field form.eupago_mb_creditcard_api_key %}
-            {% bootstrap_field form.eupago_mb_creditcard_webhook_secret %}
-        </div>
-    </div>
-
-    <div class="panel panel-success">
-        <div class="panel-heading">
-            <h3 class="panel-title">{% trans "MBWay Configuration" %}</h3>
-        </div>
-        <div class="panel-body">
-            <p class="text-muted">{% trans "Dedicated configuration for MBWay payments. If not configured, will use general settings above." %}</p>
-            {% bootstrap_field form.eupago_mbway_new_api_key %}
-            {% bootstrap_field form.eupago_mbway_new_webhook_secret %}
         </div>
     </div>
     

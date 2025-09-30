@@ -829,30 +829,6 @@ class EuPagoSettingsForm(SettingsForm):
             'class': 'form-control'
         })
     )
-    
-    # MB/Credit Card specific configuration
-    eupago_mb_creditcard_api_key = SecretKeySettingsField(
-        label=_('MB/Credit Card API Key'),
-        help_text=_('Dedicated API Key for MB and Credit Card payments'),
-        required=False,
-    )
-    eupago_mb_creditcard_webhook_secret = SecretKeySettingsField(
-        label=_('MB/Credit Card Webhook Secret'),
-        help_text=_('Dedicated Webhook Secret for MB and Credit Card payments'),
-        required=False,
-    )
-    
-    # MBWay specific configuration
-    eupago_mbway_new_api_key = SecretKeySettingsField(
-        label=_('MBWay API Key'),
-        help_text=_('Dedicated API Key for MBWay payments'),
-        required=False,
-    )
-    eupago_mbway_new_webhook_secret = SecretKeySettingsField(
-        label=_('MBWay Webhook Secret'),
-        help_text=_('Dedicated Webhook Secret for MBWay payments'),
-        required=False,
-    )
 
 
 class EuPagoSettingsView(OrganizerDetailViewMixin, OrganizerPermissionRequiredMixin, FormView):
@@ -1383,14 +1359,7 @@ def _get_webhook_secret_for_decryption(event_data):
                         webhook_secret = potential_secret
                         logger.debug(f"Using default webhook secret from organizer '{organizer.slug}' settings")
                         break
-                        
-                    # If default not found, try method-specific secrets (for backward compatibility during decryption)
-                    for method_prefix in ['mb_creditcard', 'mbway_new']:
-                        method_secret = organizer.settings.get(f'eupago_{method_prefix}_webhook_secret', '')
-                        if method_secret:
-                            webhook_secret = method_secret
-                            logger.debug(f"Using {method_prefix} webhook secret from organizer '{organizer.slug}' settings for decryption")
-                            break
+
                     
                     if webhook_secret:
                         break
@@ -1422,7 +1391,7 @@ def _get_webhook_secret_for_decryption(event_data):
 
 
 def _get_webhook_secret_for_payment(payment):
-    """Get the appropriate webhook secret for a specific payment based on its provider"""
+    """Get the webhook secret from organizer-level configuration"""
     if not payment:
         return None
         
@@ -1430,28 +1399,14 @@ def _get_webhook_secret_for_payment(payment):
     organizer = payment.order.event.organizer
     
     try:
-        # Map provider IDs to method prefixes for new payment methods
-        method_prefix_map = {
-            'eupago_mb_creditcard': 'mb_creditcard',
-            'eupago_mbway_new': 'mbway_new'
-        }
+        # All payment methods now use the same organizer-level webhook secret
+        webhook_secret = organizer.settings.get('payment_eupago_webhook_secret', '')
+        if not webhook_secret:
+            webhook_secret = organizer.settings.get('eupago_webhook_secret', '')
         
-        # Check if this is one of the new payment methods with dedicated webhook secrets
-        if provider_id in method_prefix_map:
-            method_prefix = method_prefix_map[provider_id]
-            method_secret = organizer.settings.get(f'eupago_{method_prefix}_webhook_secret', '')
-            if method_secret:
-                logger.debug(f"Using dedicated webhook secret for {provider_id}")
-                return method_secret
-        
-        # Fallback to default webhook secret for legacy methods
-        default_secret = organizer.settings.get('payment_eupago_webhook_secret', '')
-        if not default_secret:
-            default_secret = organizer.settings.get('eupago_webhook_secret', '')
-        
-        if default_secret:
-            logger.debug(f"Using default webhook secret for {provider_id}")
-            return default_secret
+        if webhook_secret:
+            logger.debug(f"Using organizer-level webhook secret for {provider_id}")
+            return webhook_secret
             
         logger.warning(f"No webhook secret configured for payment {payment.full_id} with provider {provider_id}")
         return None
