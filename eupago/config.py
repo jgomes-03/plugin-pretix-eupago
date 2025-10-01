@@ -17,12 +17,8 @@ DEFAULT_SETTINGS = {
     'payshop_description': 'Pay in cash at any PayShop location',
     'paybylink_description': 'Pay online with your preferred payment method',
     
-    # New payment methods with dedicated configurations
-    'mb_creditcard_api_key': '',
-    'mb_creditcard_webhook_secret': '',
+    # New payment methods descriptions (configurations now at organizer level)
     'mb_creditcard_description': 'Pay with MB or Credit Card',
-    'mbway_new_api_key': '',
-    'mbway_new_webhook_secret': '',
     'mbway_new_description': 'Pay with MBWay using your mobile phone',
 }
 
