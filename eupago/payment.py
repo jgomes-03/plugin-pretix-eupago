@@ -1205,32 +1205,32 @@ class EuPagoMBCreditCard(EuPagoBaseProvider):
         return super().settings_form_fields
 
     def _get_headers(self, payment_method: str = None) -> dict:
-        """Override to use method-specific API key"""
+        """Get headers with organizer-level API key"""
         headers = {'Content-Type': 'application/json'}
         
-        # Use method-specific API key
-        api_key = self.get_setting("api_key")  # This will use the method-specific key due to get_setting override
+        # Use organizer-level API key
+        api_key = self.get_setting("api_key")
         
         if api_key and payment_method:
             from .config import AUTH_METHODS
             if AUTH_METHODS.get(payment_method) == 'header':
                 headers['Authorization'] = f'Bearer {api_key}'
-                logger.debug(f'Adding method-specific API key to header for {payment_method}')
+                logger.debug(f'Adding organizer-level API key to header for {payment_method}')
             elif AUTH_METHODS.get(payment_method) == 'oauth':
                 headers['Authorization'] = f'Bearer {api_key}'
-                logger.debug(f'Adding method-specific Bearer token for {payment_method}')
+                logger.debug(f'Adding organizer-level Bearer token for {payment_method}')
         
         return headers
 
     def _validate_webhook_signature(self, payload: str, signature: str) -> bool:
-        """Override to use method-specific webhook secret"""
+        """Validate webhook signature using organizer-level webhook secret"""
         import json, hmac, hashlib, base64, logging
         logger = logging.getLogger('pretix.plugins.eupago')
 
-        # Use method-specific webhook secret
+        # Use organizer-level webhook secret
         webhook_secret = self.get_setting('webhook_secret') or ''
         if not webhook_secret:
-            logger.warning('No MB/Credit Card webhook secret configured - skipping signature validation')
+            logger.warning('No webhook secret configured - skipping signature validation')
             return True
 
         if not signature:
@@ -1391,19 +1391,24 @@ class EuPagoMBCreditCard(EuPagoBaseProvider):
         """Render confirmation for MB and Credit Card payment"""
         logger.info(f'EuPagoMBCreditCard.checkout_confirm_render called for event: {self.event.slug}')
         
-        template = get_template('pretixplugins/eupago/checkout_payment_confirm_mb_creditcard.html')
+        template = get_template('pretixplugins/eupago/checkout_payment_confirm_paybylink.html')
         ctx = {
             'request': request, 
             'event': self.event,
             'settings': self.settings,
             'provider': self,
-            'total': request.session.get('cart_total', 0)
+            'method_name': _('MB and Credit Card'),
+            'payment_description': self.get_setting('description') or _('Pay with MB or Credit Card'),
         }
+        return template.render(ctx)
         
-        rendered = template.render(ctx)
-        logger.info(f'EuPagoMBCreditCard.checkout_confirm_render - template rendered successfully')
-        
-        return rendered
+    def checkout_prepare(self, request, cart):
+        """Prepare checkout for MB and Credit Card PayByLink payment"""
+        return True  # No special preparation needed
+    
+    def payment_is_valid_session(self, request):
+        """Check if payment session is valid"""
+        return True  # PayByLink payments are handled externally
 
 
 class EuPagoMBWayNew(EuPagoBaseProvider):
@@ -1424,32 +1429,32 @@ class EuPagoMBWayNew(EuPagoBaseProvider):
         return super().settings_form_fields
 
     def _get_headers(self, payment_method: str = None) -> dict:
-        """Override to use method-specific API key"""
+        """Get headers with organizer-level API key"""
         headers = {'Content-Type': 'application/json'}
         
-        # Use method-specific API key
-        api_key = self.get_setting("api_key")  # This will use the method-specific key due to get_setting override
+        # Use organizer-level API key
+        api_key = self.get_setting("api_key")
         
         if api_key and payment_method:
             from .config import AUTH_METHODS
             if AUTH_METHODS.get(payment_method) == 'header':
                 headers['Authorization'] = f'Bearer {api_key}'
-                logger.debug(f'Adding method-specific API key to header for {payment_method}')
+                logger.debug(f'Adding organizer-level API key to header for {payment_method}')
             elif AUTH_METHODS.get(payment_method) == 'oauth':
                 headers['Authorization'] = f'Bearer {api_key}'
-                logger.debug(f'Adding method-specific Bearer token for {payment_method}')
+                logger.debug(f'Adding organizer-level Bearer token for {payment_method}')
         
         return headers
 
     def _validate_webhook_signature(self, payload: str, signature: str) -> bool:
-        """Override to use method-specific webhook secret"""
+        """Validate webhook signature using organizer-level webhook secret"""
         import json, hmac, hashlib, base64, logging
         logger = logging.getLogger('pretix.plugins.eupago')
 
-        # Use method-specific webhook secret
+        # Use organizer-level webhook secret
         webhook_secret = self.get_setting('webhook_secret') or ''
         if not webhook_secret:
-            logger.warning('No MBWay webhook secret configured - skipping signature validation')
+            logger.warning('No webhook secret configured - skipping signature validation')
             return True
 
         if not signature:
@@ -1556,9 +1561,8 @@ class EuPagoMBWayNew(EuPagoBaseProvider):
         }
         
         # Adicionar descrição personalizada se configurada
-        mbway_description = self.get_setting('mbway_new_description') or self.get_setting('mbway_description')
-        if mbway_description:
-            data['payment']['description'] = mbway_description
+        mbway_description = self.get_setting('mbway_description') or _('Pay with MBWay using your mobile phone')
+        data['payment']['description'] = mbway_description
 
         try:
             logger.info(f'Creating MBWay PayByLink payment for {payment.full_id}: €{payment.amount}')
@@ -1642,7 +1646,7 @@ class EuPagoMBWayNew(EuPagoBaseProvider):
             'settings': self.settings,
             'provider': self,
             'method_name': _('MBWay'),
-            'payment_description': self.get_setting('mbway_new_description') or self.get_setting('mbway_description') or _('Pay with MBWay using your mobile phone'),
+            'payment_description': self.get_setting('mbway_description') or _('Pay with MBWay using your mobile phone'),
         }
         return template.render(ctx)
         

@@ -40,7 +40,8 @@ PAYMENT_METHODS = {
     'payshop': 'eupago_payshop',
     'paybylink': 'eupago_paybylink',
     'mb_creditcard': 'eupago_mb_creditcard',  # New: MB and Credit Card
-    'mbway_new': 'eupago_mbway_new'          # New: MBWay with dedicated config
+    'mbway_new': 'eupago_mbway_new',         # New: MBWay 
+    'mbway_paybylink': 'eupago_mbway_new'    # MBWay via PayByLink
 }
 
 # API Endpoints for each payment method
