@@ -3,10 +3,21 @@
 # Pretix stores payment provider settings with a 'payment_' prefix before the provider identifier
 # e.g., 'payment_eupago_webhook_secret' instead of just 'eupago_webhook_secret'
 DEFAULT_SETTINGS = {
+    # MB/Credit Card specific configuration
+    'mb_cc_api_key': '',
+    'mb_cc_webhook_secret': '',
+    
+    # MBWay specific configuration
+    'mbway_api_key': '',
+    'mbway_webhook_secret': '',
+    
+    # General configuration (for all other payment methods)
     'api_key': '',
+    'webhook_secret': '',
+    
+    # Common settings
     'client_id': '',
     'client_secret': '',
-    'webhook_secret': '',
     'endpoint': 'sandbox',
     'debug_mode': False,  # When enabled, provides additional debugging information and accepts more signature formats
     
@@ -17,7 +28,7 @@ DEFAULT_SETTINGS = {
     'payshop_description': 'Pay in cash at any PayShop location',
     'paybylink_description': 'Pay online with your preferred payment method',
     
-    # New payment methods descriptions (configurations now at organizer level)
+    # New payment methods descriptions
     'mb_creditcard_description': 'Pay with MB or Credit Card',
     'mbway_new_description': 'Pay with MBWay using your mobile phone',
 }

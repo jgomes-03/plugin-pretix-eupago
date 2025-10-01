@@ -746,11 +746,42 @@ def _handle_payment_pending(payment: OrderPayment, data: dict):
 class EuPagoSettingsForm(SettingsForm):
     """Form for EuPago global settings"""
     
-    eupago_api_key = SecretKeySettingsField(
-        label=_('API Key'),
-        help_text=_('Your EuPago API key'),
+    # MB/Credit Card specific configuration
+    eupago_mb_cc_api_key = SecretKeySettingsField(
+        label=_('MB/Credit Card API Key'),
+        help_text=_('API key specifically for MB/Credit Card payments'),
         required=False,
     )
+    eupago_mb_cc_webhook_secret = SecretKeySettingsField(
+        label=_('MB/Credit Card Webhook Secret'),
+        help_text=_('Webhook secret specifically for MB/Credit Card payments'),
+        required=False,
+    )
+    
+    # MBWay specific configuration
+    eupago_mbway_api_key = SecretKeySettingsField(
+        label=_('MBWay API Key'),
+        help_text=_('API key specifically for MBWay payments'),
+        required=False,
+    )
+    eupago_mbway_webhook_secret = SecretKeySettingsField(
+        label=_('MBWay Webhook Secret'),
+        help_text=_('Webhook secret specifically for MBWay payments'),
+        required=False,
+    )
+    
+    # General configuration (for all other payment methods)
+    eupago_api_key = SecretKeySettingsField(
+        label=_('General API Key'),
+        help_text=_('General API key for all other payment methods (Multibanco, PayShop, PayByLink, etc.)'),
+        required=False,
+    )
+    eupago_webhook_secret = SecretKeySettingsField(
+        label=_('General Webhook Secret'),
+        help_text=_('General webhook secret for all other payment methods'),
+        required=False,
+    )
+    
     eupago_client_id = forms.CharField(
         label=_('Client ID'),
         help_text=_('Your EuPago Client ID'),
@@ -760,11 +791,6 @@ class EuPagoSettingsForm(SettingsForm):
     eupago_client_secret = SecretKeySettingsField(
         label=_('Client Secret'),
         help_text=_('Your EuPago Client Secret'),
-        required=False,
-    )
-    eupago_webhook_secret = SecretKeySettingsField(
-        label=_('Webhook Secret'),
-        help_text=_('Secret key for webhook signature validation'),
         required=False,
     )
     eupago_channel_id = forms.CharField(
@@ -1391,7 +1417,7 @@ def _get_webhook_secret_for_decryption(event_data):
 
 
 def _get_webhook_secret_for_payment(payment):
-    """Get the webhook secret from organizer-level configuration"""
+    """Get the appropriate webhook secret based on payment provider"""
     if not payment:
         return None
         
@@ -1399,13 +1425,21 @@ def _get_webhook_secret_for_payment(payment):
     organizer = payment.order.event.organizer
     
     try:
-        # All payment methods now use the same organizer-level webhook secret
-        webhook_secret = organizer.settings.get('payment_eupago_webhook_secret', '')
-        if not webhook_secret:
-            webhook_secret = organizer.settings.get('eupago_webhook_secret', '')
+        # Use specific webhook secret based on payment method
+        if provider_id == 'eupago_mb_creditcard':
+            webhook_secret = organizer.settings.get('eupago_mb_cc_webhook_secret', '')
+            logger.debug(f"Using MB/CC specific webhook secret for {provider_id}")
+        elif provider_id == 'eupago_mbway_new':
+            webhook_secret = organizer.settings.get('eupago_mbway_webhook_secret', '')
+            logger.debug(f"Using MBWay specific webhook secret for {provider_id}")
+        else:
+            # For all other payment methods, use general webhook secret
+            webhook_secret = organizer.settings.get('payment_eupago_webhook_secret', '')
+            if not webhook_secret:
+                webhook_secret = organizer.settings.get('eupago_webhook_secret', '')
+            logger.debug(f"Using general webhook secret for {provider_id}")
         
         if webhook_secret:
-            logger.debug(f"Using organizer-level webhook secret for {provider_id}")
             return webhook_secret
             
         logger.warning(f"No webhook secret configured for payment {payment.full_id} with provider {provider_id}")

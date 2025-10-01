@@ -11,16 +11,41 @@
 <form method="post" action="">
     {% csrf_token %}
     
+    <!-- MB/Credit Card Configuration -->
     <div class="panel panel-default">
         <div class="panel-heading">
-            <h3 class="panel-title">{% trans "API Configuration" %}</h3>
+            <h3 class="panel-title">{% trans "MB/Credit Card Configuration" %}</h3>
         </div>
         <div class="panel-body">
-            <p class="text-muted">{% trans "Configuration for all EuPago payment methods. MB/Credit Card and MBWay will use these settings." %}</p>
+            <p class="text-muted">{% trans "Specific configuration for MB/Credit Card payments." %}</p>
+            {% bootstrap_field form.eupago_mb_cc_api_key %}
+            {% bootstrap_field form.eupago_mb_cc_webhook_secret %}
+        </div>
+    </div>
+
+    <!-- MBWay Configuration -->
+    <div class="panel panel-default">
+        <div class="panel-heading">
+            <h3 class="panel-title">{% trans "MBWay Configuration" %}</h3>
+        </div>
+        <div class="panel-body">
+            <p class="text-muted">{% trans "Specific configuration for MBWay payments." %}</p>
+            {% bootstrap_field form.eupago_mbway_api_key %}
+            {% bootstrap_field form.eupago_mbway_webhook_secret %}
+        </div>
+    </div>
+
+    <!-- General Configuration -->
+    <div class="panel panel-default">
+        <div class="panel-heading">
+            <h3 class="panel-title">{% trans "General Configuration" %}</h3>
+        </div>
+        <div class="panel-body">
+            <p class="text-muted">{% trans "General configuration for all other payment methods (Multibanco, PayShop, PayByLink, etc.)." %}</p>
             {% bootstrap_field form.eupago_api_key %}
+            {% bootstrap_field form.eupago_webhook_secret %}
             {% bootstrap_field form.eupago_client_id %}
             {% bootstrap_field form.eupago_client_secret %}
-            {% bootstrap_field form.eupago_webhook_secret %}
             {% bootstrap_field form.eupago_channel_id %}
             {% bootstrap_field form.eupago_endpoint %}
             {% bootstrap_field form.eupago_debug_mode %}

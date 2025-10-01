@@ -35,7 +35,7 @@ class EuPagoBaseProvider(BasePaymentProvider):
 
     def get_setting(self, name, default=None):
         """Get a setting from organizer-level configuration"""
-        # All payment methods now use the same organizer-level configuration
+        # Default implementation for general payment methods
         # First try with payment_eupago prefix (standard pretix convention for legacy settings)
         try:
             value = self.organizer.settings.get(f'payment_eupago_{name}', None)
@@ -49,6 +49,22 @@ class EuPagoBaseProvider(BasePaymentProvider):
             except Exception:
                 value = default
                 
+        return value
+    
+    def get_mb_cc_setting(self, name, default=None):
+        """Get MB/Credit Card specific setting"""
+        try:
+            value = self.organizer.settings.get(f'eupago_mb_cc_{name}', default)
+        except Exception:
+            value = default
+        return value
+    
+    def get_mbway_setting(self, name, default=None):
+        """Get MBWay specific setting"""
+        try:
+            value = self.organizer.settings.get(f'eupago_mbway_{name}', default)
+        except Exception:
+            value = default
         return value
     
     @property
@@ -1193,7 +1209,7 @@ class EuPagoPayByLink(EuPagoBaseProvider):
 
 
 class EuPagoMBCreditCard(EuPagoBaseProvider):
-    """MB and Credit Card payment method using organizer-level configuration"""
+    """MB and Credit Card payment method using MB/CC specific configuration"""
     identifier = 'eupago_mb_creditcard'
     verbose_name = _('MB and Credit Card (EuPago)')
     method = 'paybylink'
@@ -1205,32 +1221,32 @@ class EuPagoMBCreditCard(EuPagoBaseProvider):
         return super().settings_form_fields
 
     def _get_headers(self, payment_method: str = None) -> dict:
-        """Get headers with organizer-level API key"""
+        """Get headers with MB/Credit Card specific API key"""
         headers = {'Content-Type': 'application/json'}
         
-        # Use organizer-level API key
-        api_key = self.get_setting("api_key")
+        # Use MB/Credit Card specific API key
+        api_key = self.get_mb_cc_setting("api_key")
         
         if api_key and payment_method:
             from .config import AUTH_METHODS
             if AUTH_METHODS.get(payment_method) == 'header':
                 headers['Authorization'] = f'Bearer {api_key}'
-                logger.debug(f'Adding organizer-level API key to header for {payment_method}')
+                logger.debug(f'Adding MB/CC specific API key to header for {payment_method}')
             elif AUTH_METHODS.get(payment_method) == 'oauth':
                 headers['Authorization'] = f'Bearer {api_key}'
-                logger.debug(f'Adding organizer-level Bearer token for {payment_method}')
+                logger.debug(f'Adding MB/CC specific Bearer token for {payment_method}')
         
         return headers
 
     def _validate_webhook_signature(self, payload: str, signature: str) -> bool:
-        """Validate webhook signature using organizer-level webhook secret"""
+        """Validate webhook signature using MB/Credit Card specific webhook secret"""
         import json, hmac, hashlib, base64, logging
         logger = logging.getLogger('pretix.plugins.eupago')
 
-        # Use organizer-level webhook secret
-        webhook_secret = self.get_setting('webhook_secret') or ''
+        # Use MB/Credit Card specific webhook secret
+        webhook_secret = self.get_mb_cc_setting('webhook_secret') or ''
         if not webhook_secret:
-            logger.warning('No webhook secret configured - skipping signature validation')
+            logger.warning('No MB/CC webhook secret configured - skipping signature validation')
             return True
 
         if not signature:
@@ -1412,7 +1428,7 @@ class EuPagoMBCreditCard(EuPagoBaseProvider):
 
 
 class EuPagoMBWayNew(EuPagoBaseProvider):
-    """New MBWay payment method via PayByLink using organizer-level configuration"""
+    """New MBWay payment method via PayByLink using MBWay specific configuration"""
     identifier = 'eupago_mbway_new'
     verbose_name = _('MBWay')
     method = 'mbway_paybylink'
@@ -1429,32 +1445,32 @@ class EuPagoMBWayNew(EuPagoBaseProvider):
         return super().settings_form_fields
 
     def _get_headers(self, payment_method: str = None) -> dict:
-        """Get headers with organizer-level API key"""
+        """Get headers with MBWay specific API key"""
         headers = {'Content-Type': 'application/json'}
         
-        # Use organizer-level API key
-        api_key = self.get_setting("api_key")
+        # Use MBWay specific API key
+        api_key = self.get_mbway_setting("api_key")
         
         if api_key and payment_method:
             from .config import AUTH_METHODS
             if AUTH_METHODS.get(payment_method) == 'header':
                 headers['Authorization'] = f'Bearer {api_key}'
-                logger.debug(f'Adding organizer-level API key to header for {payment_method}')
+                logger.debug(f'Adding MBWay specific API key to header for {payment_method}')
             elif AUTH_METHODS.get(payment_method) == 'oauth':
                 headers['Authorization'] = f'Bearer {api_key}'
-                logger.debug(f'Adding organizer-level Bearer token for {payment_method}')
+                logger.debug(f'Adding MBWay specific Bearer token for {payment_method}')
         
         return headers
 
     def _validate_webhook_signature(self, payload: str, signature: str) -> bool:
-        """Validate webhook signature using organizer-level webhook secret"""
+        """Validate webhook signature using MBWay specific webhook secret"""
         import json, hmac, hashlib, base64, logging
         logger = logging.getLogger('pretix.plugins.eupago')
 
-        # Use organizer-level webhook secret
-        webhook_secret = self.get_setting('webhook_secret') or ''
+        # Use MBWay specific webhook secret
+        webhook_secret = self.get_mbway_setting('webhook_secret') or ''
         if not webhook_secret:
-            logger.warning('No webhook secret configured - skipping signature validation')
+            logger.warning('No MBWay webhook secret configured - skipping signature validation')
             return True
 
         if not signature:
