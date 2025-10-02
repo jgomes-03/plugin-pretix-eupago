@@ -153,27 +153,29 @@ class EuPagoBaseProvider(BasePaymentProvider):
         
         headers = {'Content-Type': 'application/json'}
         api_key = self.get_setting("api_key")
+        logger.debug(f'EuPagoBaseProvider._get_headers: api_key={"[CONFIGURED]" if api_key else "[NOT CONFIGURED]"}, payment_method={payment_method}')
         
         # Add authentication based on payment method
         if payment_method and AUTH_METHODS.get(payment_method) == 'header':
             if api_key:
-                # EuPago Credit Card expects "ApiKey" header (not Authorization)
-                if payment_method == 'creditcard':
-                    headers['ApiKey'] = api_key
-                    logger.debug(f'Adding API key to ApiKey header for {payment_method}')
+                # EuPago expects "ApiKey XXXXX" format in header for most endpoints
+                if payment_method in ['creditcard', 'paybylink', 'mbway_paybylink']:
+                    headers['ApiKey'] = f'ApiKey {api_key}'
+                    logger.info(f'EuPagoBaseProvider: Adding API key to ApiKey header for {payment_method}')
                 else:
                     # Other methods might use Authorization
                     headers['Authorization'] = f'ApiKey {api_key}'
-                    logger.debug(f'Adding API key to Authorization header for {payment_method}')
+                    logger.info(f'EuPagoBaseProvider: Adding API key to Authorization header for {payment_method}')
             else:
-                logger.error(f'No API key configured for {payment_method}')
+                logger.error(f'EuPagoBaseProvider: No API key configured for {payment_method}')
         elif payment_method and AUTH_METHODS.get(payment_method) == 'oauth':
             if api_key:
                 headers['Authorization'] = f'Bearer {api_key}'
-                logger.debug(f'Adding Bearer token for {payment_method}')
+                logger.info(f'EuPagoBaseProvider: Adding Bearer token for {payment_method}')
             else:
-                logger.error(f'No API key configured for {payment_method}')
-            
+                logger.error(f'EuPagoBaseProvider: No API key configured for {payment_method}')
+        
+        logger.debug(f'EuPagoBaseProvider: Final headers: {headers}')        
         return headers
 
     def _make_api_request(self, endpoint: str, data: dict, method: str = 'POST', payment_method: str = None) -> dict:
@@ -763,16 +765,26 @@ class EuPagoMBCreditCard(EuPagoBaseProvider):
         
         # Use MB/Credit Card specific API key
         api_key = self.get_mb_cc_setting("api_key")
+        logger.debug(f'EuPagoMBCreditCard._get_headers: api_key={"[CONFIGURED]" if api_key else "[NOT CONFIGURED]"}, payment_method={payment_method}')
         
         if api_key and payment_method:
             from .config import AUTH_METHODS
-            if AUTH_METHODS.get(payment_method) == 'header':
+            auth_method = AUTH_METHODS.get(payment_method)
+            logger.debug(f'EuPagoMBCreditCard: Auth method for {payment_method}: {auth_method}')
+            
+            if auth_method == 'header':
+                # EuPago PayByLink expects "ApiKey XXXXX" format in header
+                headers['ApiKey'] = f'ApiKey {api_key}'
+                logger.info(f'EuPagoMBCreditCard: Adding MB/CC specific API key to ApiKey header for {payment_method}')
+            elif auth_method == 'oauth':
                 headers['Authorization'] = f'Bearer {api_key}'
-                logger.debug(f'Adding MB/CC specific API key to header for {payment_method}')
-            elif AUTH_METHODS.get(payment_method) == 'oauth':
-                headers['Authorization'] = f'Bearer {api_key}'
-                logger.debug(f'Adding MB/CC specific Bearer token for {payment_method}')
+                logger.info(f'EuPagoMBCreditCard: Adding MB/CC specific Bearer token for {payment_method}')
+        elif not api_key:
+            logger.error(f'EuPagoMBCreditCard: No MB/CC API key configured for payment method {payment_method}')
+        elif not payment_method:
+            logger.warning(f'EuPagoMBCreditCard: No payment method specified for header configuration')
         
+        logger.debug(f'EuPagoMBCreditCard: Final headers: {headers}')
         return headers
 
     def _make_api_request(self, endpoint: str, data: dict, method: str = 'POST', payment_method: str = None) -> dict:
@@ -1158,16 +1170,26 @@ class EuPagoMBWayNew(EuPagoBaseProvider):
         
         # Use MBWay specific API key
         api_key = self.get_mbway_setting("api_key")
+        logger.debug(f'EuPagoMBWayNew._get_headers: api_key={"[CONFIGURED]" if api_key else "[NOT CONFIGURED]"}, payment_method={payment_method}')
         
         if api_key and payment_method:
             from .config import AUTH_METHODS
-            if AUTH_METHODS.get(payment_method) == 'header':
+            auth_method = AUTH_METHODS.get(payment_method)
+            logger.debug(f'EuPagoMBWayNew: Auth method for {payment_method}: {auth_method}')
+            
+            if auth_method == 'header':
+                # EuPago PayByLink expects "ApiKey XXXXX" format in header
+                headers['ApiKey'] = f'ApiKey {api_key}'
+                logger.info(f'EuPagoMBWayNew: Adding MBWay specific API key to ApiKey header for {payment_method}')
+            elif auth_method == 'oauth':
                 headers['Authorization'] = f'Bearer {api_key}'
-                logger.debug(f'Adding MBWay specific API key to header for {payment_method}')
-            elif AUTH_METHODS.get(payment_method) == 'oauth':
-                headers['Authorization'] = f'Bearer {api_key}'
-                logger.debug(f'Adding MBWay specific Bearer token for {payment_method}')
+                logger.info(f'EuPagoMBWayNew: Adding MBWay specific Bearer token for {payment_method}')
+        elif not api_key:
+            logger.error(f'EuPagoMBWayNew: No MBWay API key configured for payment method {payment_method}')
+        elif not payment_method:
+            logger.warning(f'EuPagoMBWayNew: No payment method specified for header configuration')
         
+        logger.debug(f'EuPagoMBWayNew: Final headers: {headers}')
         return headers
 
     def _make_api_request(self, endpoint: str, data: dict, method: str = 'POST', payment_method: str = None) -> dict:
@@ -1274,6 +1296,12 @@ class EuPagoMBWayNew(EuPagoBaseProvider):
         logger.info(f'MBWay API key configured: {"Yes" if mbway_api_key else "No"}')
         if mbway_api_key:
             logger.info(f'MBWay API key (first 10 chars): {mbway_api_key[:10]}...')
+        else:
+            # Also check if there's a general API key configured as fallback
+            general_api_key = self.get_setting("api_key")
+            logger.info(f'General API key as fallback: {"Yes" if general_api_key else "No"}')
+            if general_api_key:
+                logger.info(f'General API key (first 10 chars): {general_api_key[:10]}...')
         
         # Construir as URLs de retorno usando o mesmo padrão do PayByLink
         return_url_base = build_absolute_uri(
