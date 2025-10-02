@@ -19,6 +19,7 @@ from pretix.base.models import Event, Order, OrderPayment
 from pretix.base.payment import BasePaymentProvider, PaymentException
 from pretix.base.settings import SettingsSandbox
 from pretix.multidomain.urlreverse import build_absolute_uri
+from pretix.multidomain.urlreverse import build_absolute_uri
 
 logger = logging.getLogger('pretix.plugins.eupago')
 
@@ -767,22 +768,12 @@ class EuPagoMBCreditCard(EuPagoBaseProvider):
         api_key = self.get_mb_cc_setting("api_key")
         logger.debug(f'EuPagoMBCreditCard._get_headers: api_key={"[CONFIGURED]" if api_key else "[NOT CONFIGURED]"}, payment_method={payment_method}')
         
-        if api_key and payment_method:
-            from .config import AUTH_METHODS
-            auth_method = AUTH_METHODS.get(payment_method)
-            logger.debug(f'EuPagoMBCreditCard: Auth method for {payment_method}: {auth_method}')
-            
-            if auth_method == 'header':
-                # EuPago PayByLink expects "ApiKey XXXXX" format in header
-                headers['ApiKey'] = f'ApiKey {api_key}'
-                logger.info(f'EuPagoMBCreditCard: Adding MB/CC specific API key to ApiKey header for {payment_method}')
-            elif auth_method == 'oauth':
-                headers['Authorization'] = f'Bearer {api_key}'
-                logger.info(f'EuPagoMBCreditCard: Adding MB/CC specific Bearer token for {payment_method}')
-        elif not api_key:
-            logger.error(f'EuPagoMBCreditCard: No MB/CC API key configured for payment method {payment_method}')
-        elif not payment_method:
-            logger.warning(f'EuPagoMBCreditCard: No payment method specified for header configuration')
+        if api_key:
+            # EuPago PayByLink expects just the API key in Authorization header
+            headers['Authorization'] = api_key
+            logger.info(f'EuPagoMBCreditCard: Adding MB/CC specific API key to Authorization header')
+        else:
+            logger.error(f'EuPagoMBCreditCard: No MB/CC API key configured')
         
         logger.debug(f'EuPagoMBCreditCard: Final headers: {headers}')
         return headers
@@ -939,13 +930,16 @@ class EuPagoMBCreditCard(EuPagoBaseProvider):
                     'currency': 'EUR',
                     'value': float(payment.amount)
                 },
+                'shipping': {
+                    'value': 0,
+                    'currency': 'EUR'
+                },
+                'lang': 'PT',
                 'identifier': payment.full_id,
                 'successUrl': success_url,
                 'failUrl': fail_url,
                 'backUrl': back_url
-            },
-            'urlReturn': return_url_base,
-            'urlCallback': request.build_absolute_uri(reverse('plugins:eupago:webhook'))
+            }
         }
         
         # Adicionar descrição personalizada se configurada
@@ -1077,7 +1071,6 @@ class EuPagoMBWay(EuPagoBaseProvider):
     def execute_payment(self, request: HttpRequest, payment: OrderPayment):
         """Execute MBWay payment"""
         from .config import API_ENDPOINTS
-        from pretix.multidomain.urlreverse import build_absolute_uri
         
         # Try multiple ways to get the phone number
         phone = None
@@ -1172,22 +1165,12 @@ class EuPagoMBWayNew(EuPagoBaseProvider):
         api_key = self.get_mbway_setting("api_key")
         logger.debug(f'EuPagoMBWayNew._get_headers: api_key={"[CONFIGURED]" if api_key else "[NOT CONFIGURED]"}, payment_method={payment_method}')
         
-        if api_key and payment_method:
-            from .config import AUTH_METHODS
-            auth_method = AUTH_METHODS.get(payment_method)
-            logger.debug(f'EuPagoMBWayNew: Auth method for {payment_method}: {auth_method}')
-            
-            if auth_method == 'header':
-                # EuPago PayByLink expects "ApiKey XXXXX" format in header
-                headers['ApiKey'] = f'ApiKey {api_key}'
-                logger.info(f'EuPagoMBWayNew: Adding MBWay specific API key to ApiKey header for {payment_method}')
-            elif auth_method == 'oauth':
-                headers['Authorization'] = f'Bearer {api_key}'
-                logger.info(f'EuPagoMBWayNew: Adding MBWay specific Bearer token for {payment_method}')
-        elif not api_key:
-            logger.error(f'EuPagoMBWayNew: No MBWay API key configured for payment method {payment_method}')
-        elif not payment_method:
-            logger.warning(f'EuPagoMBWayNew: No payment method specified for header configuration')
+        if api_key:
+            # EuPago PayByLink expects just the API key in Authorization header
+            headers['Authorization'] = api_key
+            logger.info(f'EuPagoMBWayNew: Adding MBWay specific API key to Authorization header')
+        else:
+            logger.error(f'EuPagoMBWayNew: No MBWay API key configured')
         
         logger.debug(f'EuPagoMBWayNew: Final headers: {headers}')
         return headers
@@ -1355,14 +1338,16 @@ class EuPagoMBWayNew(EuPagoBaseProvider):
                     'currency': 'EUR',
                     'value': float(payment.amount)
                 },
+                'shipping': {
+                    'value': 0,
+                    'currency': 'EUR'
+                },
+                'lang': 'PT',
                 'identifier': payment.full_id,
                 'successUrl': success_url,
                 'failUrl': fail_url,
-                'backUrl': back_url,
-                'preferredMethod': 'mbway'  # Sugestão para mostrar MBWay como opção principal
-            },
-            'urlReturn': return_url_base,
-            'urlCallback': request.build_absolute_uri(reverse('plugins:eupago:webhook'))
+                'backUrl': back_url
+            }
         }
         
         # Adicionar descrição personalizada se configurada
