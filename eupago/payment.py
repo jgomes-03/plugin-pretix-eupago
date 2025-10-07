@@ -159,14 +159,10 @@ class EuPagoBaseProvider(BasePaymentProvider):
         # Add authentication based on payment method
         if payment_method and AUTH_METHODS.get(payment_method) == 'header':
             if api_key:
-                # EuPago expects "ApiKey XXXXX" format in header for most endpoints
-                if payment_method in ['creditcard', 'paybylink', 'mbway_paybylink']:
-                    headers['ApiKey'] = f'ApiKey {api_key}'
-                    logger.info(f'EuPagoBaseProvider: Adding API key to ApiKey header for {payment_method}')
-                else:
-                    # Other methods might use Authorization
-                    headers['Authorization'] = f'ApiKey {api_key}'
-                    logger.info(f'EuPagoBaseProvider: Adding API key to Authorization header for {payment_method}')
+                # EuPago API expects the API key directly in Authorization header
+                # Format: Authorization: xxxx-xxxx-xxxx-xxxx-xxxx
+                headers['Authorization'] = api_key
+                logger.info(f'EuPagoBaseProvider: Adding API key to Authorization header for {payment_method}')
             else:
                 logger.error(f'EuPagoBaseProvider: No API key configured for {payment_method}')
         elif payment_method and AUTH_METHODS.get(payment_method) == 'oauth':
@@ -588,21 +584,50 @@ class EuPagoCreditCard(EuPagoBaseProvider):
         if payment.amount > Decimal('3999.00'):
             raise PaymentException(_('Credit card payments are limited to €3999. Please use a different payment method.'))
         
+        # Construir as URLs de retorno para diferentes status
+        success_url = build_absolute_uri(
+            self.event,
+            'plugins:eupago:return_with_status',
+            kwargs={
+                'order': payment.order.code,
+                'hash': payment.order.tagged_secret('plugins:eupago'),
+                'payment': payment.pk,
+                'status': 'success'
+            }
+        )
+        
+        fail_url = build_absolute_uri(
+            self.event,
+            'plugins:eupago:return_with_status',
+            kwargs={
+                'order': payment.order.code,
+                'hash': payment.order.tagged_secret('plugins:eupago'),
+                'payment': payment.pk,
+                'status': 'fail'
+            }
+        )
+        
+        back_url = build_absolute_uri(
+            self.event,
+            'plugins:eupago:return_with_status',
+            kwargs={
+                'order': payment.order.code,
+                'hash': payment.order.tagged_secret('plugins:eupago'),
+                'payment': payment.pk,
+                'status': 'back'
+            }
+        )
+        
         # Preparar dados conforme API EuPago Credit Card
         # Nota: chave_api vai no header, não no body
         data = {
             'valor': str(payment.amount),
             'id': payment.full_id,  # Identificador único do pagamento
             'canal': self._get_channel_id(),
-            'resposta_url': build_absolute_uri(
-                self.event,
-                'plugins:eupago:return',
-                kwargs={
-                    'order': payment.order.code,
-                    'hash': payment.order.tagged_secret('plugins:eupago'),
-                    'payment': payment.pk,
-                }
-            ),
+            'resposta_url': success_url,  # URL principal de retorno (sucesso)
+            'url_ok': success_url,  # URL de sucesso
+            'url_ko': fail_url,  # URL de falha
+            'url_cancel': back_url,  # URL de cancelamento
         }
         
         # Adicionar descrição personalizada se configurada
@@ -754,6 +779,7 @@ class EuPagoMBCreditCard(EuPagoBaseProvider):
     verbose_name = _('MB and Credit Card (EuPago)')
     method = 'paybylink'
     payment_form_template_name = 'pretixplugins/eupago/checkout_payment_form_mb_creditcard.html'
+    
 
     @property
     def settings_form_fields(self):
@@ -785,14 +811,6 @@ class EuPagoMBCreditCard(EuPagoBaseProvider):
         url = f"{self._get_api_base_url()}{endpoint}"
         headers = self._get_headers(payment_method)
         api_key = self.get_mb_cc_setting("api_key")  # Use MB/CC specific API key
-        
-        # Add API key to body for certain payment methods
-        if payment_method and AUTH_METHODS.get(payment_method) == 'body':
-            if api_key:
-                data['chave'] = api_key
-                logger.debug(f'Adding MB/CC API key to body for {payment_method}')
-            else:
-                logger.error(f'No MB/CC API key configured for {payment_method}')
         
         logger.debug(f'Making {method} request to {url} for {payment_method} with MB/CC config')
         logger.debug(f'Headers: {headers}')

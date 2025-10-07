@@ -35,17 +35,36 @@ class EuPagoReturnView(View):
     
     def dispatch(self, request, *args, **kwargs):
         try:
-            self.order = request.event.orders.get_with_secret_check(
-                code=kwargs['order'], 
-                received_secret=kwargs['hash'].lower(), 
-                tag='plugins:eupago'
-            )
+            # Handle both event-specific and global URL patterns
+            if hasattr(request, 'event'):
+                # Event-specific URL pattern
+                self.order = request.event.orders.get_with_secret_check(
+                    code=kwargs['order'], 
+                    received_secret=kwargs['hash'].lower(), 
+                    tag='plugins:eupago'
+                )
+            else:
+                # Global URL pattern - need to find the order first to get the event
+                from django_scopes import scopes_disabled
+                with scopes_disabled():
+                    # Find order across all events using code and secret
+                    from pretix.base.models import Order
+                    orders = Order.objects.filter(code=kwargs['order']).select_related('event')
+                    self.order = None
+                    for order in orders:
+                        # Check secret for each order
+                        if order.check_secret(kwargs['hash'].lower(), tag='plugins:eupago'):
+                            self.order = order
+                            break
+                    
+                    if not self.order:
+                        raise Order.DoesNotExist()
         except Order.DoesNotExist:
             raise Http404('Unknown order')
             
         self.payment = get_object_or_404(
             self.order.payments,
-            pk=self.kwargs['payment'],
+            pk=kwargs['payment'],  # Use kwargs instead of self.kwargs
             provider__startswith='eupago'
         )
         return super().dispatch(request, *args, **kwargs)
@@ -55,81 +74,30 @@ class EuPagoReturnView(View):
         from django.contrib import messages
         from pretix.multidomain.urlreverse import build_absolute_uri, eventreverse
         
-        status = kwargs.get('status')
-        logger.debug(f'EuPagoReturnView.get called with status: {status} for payment {self.payment.full_id}')
-        
-        # Check if we got a specific status from EuPago
-        if status == 'success':
-            # Don't auto-confirm from success URL - wait for webhook confirmation
-            # Instead, check current payment state and show appropriate message
-            if self.payment.state == OrderPayment.PAYMENT_STATE_CONFIRMED:
-                messages.success(request, _('Payment confirmed successfully!'))
-            else:
-                # Update payment info to indicate user returned via success URL
-                payment_info = json.loads(self.payment.info or '{}')
-                payment_info['success_url_returned'] = True
-                payment_info['success_url_returned_at'] = timezone.now().isoformat()
-                self.payment.info = json.dumps(payment_info)
-                self.payment.save(update_fields=['info'])
-                
-                logger.debug(f'Payment {self.payment.full_id} user returned via success URL - waiting for webhook confirmation')
-                messages.info(request, _('Your payment is being processed. You will receive confirmation shortly.'))
-                
-            # Redirect to order page
-            return redirect(eventreverse(
-                self.order.event, 
-                'presale:event.order', 
-                kwargs={
-                    'order': self.order.code,
-                    'secret': self.order.secret
-                }
-            ))
+        try:
+            status = kwargs.get('status')
+            logger.info(f'EuPagoReturnView.get called with status: {status} for payment {self.payment.full_id}, current state: {self.payment.state}')
             
-        elif status == 'fail':
-            # If payment failed, mark it as failed and allow the user to try again
-            if self.payment.state not in [OrderPayment.PAYMENT_STATE_FAILED, OrderPayment.PAYMENT_STATE_CANCELED]:
-                try:
-                    logger.info(f'Marking payment {self.payment.full_id} as failed based on fail URL')
-                    self.payment.fail(info={'reason': 'User returned from fail URL'})
-                except Exception as e:
-                    logger.error(f'Error marking payment {self.payment.full_id} as failed: {e}')
+            # Log query parameters for debugging
+            logger.debug(f'Query parameters: {request.GET.dict()}')
             
-            messages.error(request, _('Your payment was not completed. Please try again or choose a different payment method.'))
-            
-            # Redirect to retry payment
-            return redirect(eventreverse(
-                self.order.event, 
-                'presale:event.order.pay', 
-                kwargs={
-                    'order': self.order.code,
-                    'secret': self.order.secret
-                }
-            ))
-            
-        elif status == 'back':
-            # If user went back, cancel the current payment to allow starting a new one
-            if self.payment.state == OrderPayment.PAYMENT_STATE_PENDING:
-                self.payment.state = OrderPayment.PAYMENT_STATE_CANCELED
-                self.payment.save(update_fields=['state'])
-                logger.info(f'Payment {self.payment.pk} canceled due to user going back')
-                
-            messages.info(request, _('Payment process was interrupted. You can try again when ready.'))
-            
-            # Redirect to the order page as was originally intended
-            return redirect(eventreverse(
-                self.order.event, 
-                'presale:event.order', 
-                kwargs={
-                    'order': self.order.code,
-                    'secret': self.order.secret
-                }
-            ))
-            
-        else:
-            # Default handler for normal return or unknown status
-            if self.payment.state == OrderPayment.PAYMENT_STATE_CONFIRMED:
-                messages.success(request, _('Payment confirmed successfully!'))
-                
+            # Check if we got a specific status from EuPago
+            if status == 'success':
+                # Don't auto-confirm from success URL - wait for webhook confirmation
+                # Instead, check current payment state and show appropriate message
+                if self.payment.state == OrderPayment.PAYMENT_STATE_CONFIRMED:
+                    messages.success(request, _('Payment confirmed successfully!'))
+                else:
+                    # Update payment info to indicate user returned via success URL
+                    payment_info = json.loads(self.payment.info or '{}')
+                    payment_info['success_url_returned'] = True
+                    payment_info['success_url_returned_at'] = timezone.now().isoformat()
+                    self.payment.info = json.dumps(payment_info)
+                    self.payment.save(update_fields=['info'])
+                    
+                    logger.debug(f'Payment {self.payment.full_id} user returned via success URL - waiting for webhook confirmation')
+                    messages.info(request, _('Your payment is being processed. You will receive confirmation shortly.'))
+                    
                 # Redirect to order page
                 return redirect(eventreverse(
                     self.order.event, 
@@ -139,20 +107,24 @@ class EuPagoReturnView(View):
                         'secret': self.order.secret
                     }
                 ))
-            elif self.payment.state == OrderPayment.PAYMENT_STATE_PENDING:
-                messages.info(request, _('Payment is being processed. You will receive confirmation shortly.'))
                 
-                # Redirect to order page
-                return redirect(eventreverse(
-                    self.order.event, 
-                    'presale:event.order', 
-                    kwargs={
-                        'order': self.order.code,
-                        'secret': self.order.secret
-                    }
-                ))
-            else:
-                messages.error(request, _('Payment failed. Please try again.'))
+            elif status == 'fail':
+                # If payment failed, mark it as failed and allow the user to try again
+                if self.payment.state not in [OrderPayment.PAYMENT_STATE_FAILED, OrderPayment.PAYMENT_STATE_CANCELED]:
+                    try:
+                        logger.info(f'Marking payment {self.payment.full_id} as failed based on fail URL')
+                        # Store failure information from query parameters if available
+                        failure_info = {
+                            'reason': 'User returned from fail URL',
+                            'timestamp': timezone.now().isoformat(),
+                            'query_params': request.GET.dict()
+                        }
+                        self.payment.fail(info=failure_info)
+                    except Exception as e:
+                        logger.error(f'Error marking payment {self.payment.full_id} as failed: {e}', exc_info=True)
+                        # Even if marking as failed fails, we should still show the user a message
+                
+                messages.error(request, _('Your payment was not completed. Please try again or choose a different payment method.'))
                 
                 # Redirect to retry payment
                 return redirect(eventreverse(
@@ -163,6 +135,87 @@ class EuPagoReturnView(View):
                         'secret': self.order.secret
                     }
                 ))
+                
+            elif status == 'back':
+                # If user went back, cancel the current payment to allow starting a new one
+                if self.payment.state == OrderPayment.PAYMENT_STATE_PENDING:
+                    self.payment.state = OrderPayment.PAYMENT_STATE_CANCELED
+                    self.payment.save(update_fields=['state'])
+                    logger.info(f'Payment {self.payment.pk} canceled due to user going back')
+                    
+                messages.info(request, _('Payment process was interrupted. You can try again when ready.'))
+                
+                # Redirect to the order page as was originally intended
+                return redirect(eventreverse(
+                    self.order.event, 
+                    'presale:event.order', 
+                    kwargs={
+                        'order': self.order.code,
+                        'secret': self.order.secret
+                    }
+                ))
+                
+            else:
+                # Default handler for normal return or unknown status
+                if self.payment.state == OrderPayment.PAYMENT_STATE_CONFIRMED:
+                    messages.success(request, _('Payment confirmed successfully!'))
+                    
+                    # Redirect to order page
+                    return redirect(eventreverse(
+                        self.order.event, 
+                        'presale:event.order', 
+                        kwargs={
+                            'order': self.order.code,
+                            'secret': self.order.secret
+                        }
+                    ))
+                elif self.payment.state == OrderPayment.PAYMENT_STATE_PENDING:
+                    messages.info(request, _('Payment is being processed. You will receive confirmation shortly.'))
+                    
+                    # Redirect to order page
+                    return redirect(eventreverse(
+                        self.order.event, 
+                        'presale:event.order', 
+                        kwargs={
+                            'order': self.order.code,
+                            'secret': self.order.secret
+                        }
+                    ))
+                else:
+                    messages.error(request, _('Payment failed. Please try again.'))
+                    
+                    # Redirect to retry payment
+                    return redirect(eventreverse(
+                        self.order.event, 
+                        'presale:event.order.pay', 
+                        kwargs={
+                            'order': self.order.code,
+                            'secret': self.order.secret
+                        }
+                ))
+        
+        except Exception as e:
+            # Catch any unexpected errors to prevent internal server errors
+            logger.error(f'Error handling payment return for {self.payment.full_id}: {e}', exc_info=True)
+            messages.error(request, _('An error occurred while processing your payment return. Please contact support if the issue persists.'))
+            
+            # Try to redirect to order page or payment page
+            try:
+                return redirect(eventreverse(
+                    self.order.event, 
+                    'presale:event.order', 
+                    kwargs={
+                        'order': self.order.code,
+                        'secret': self.order.secret
+                    }
+                ))
+            except Exception as redirect_error:
+                logger.error(f'Failed to redirect after error: {redirect_error}', exc_info=True)
+                # Last resort: return a basic HTTP response
+                return HttpResponse(
+                    'An error occurred. Please check your order status or contact support.',
+                    status=500
+                )
 
 
 @method_decorator(xframe_options_exempt, 'dispatch')

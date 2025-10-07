@@ -46,6 +46,7 @@ urlpatterns = [
     ),
     path('webhook/', webhook, name='webhook'),
     path('return/<slug:order>/<str:hash>/<int:payment>/', EuPagoReturnView.as_view(), name='return'),
+    path('return/<slug:order>/<str:hash>/<int:payment>/<str:status>/', EuPagoReturnView.as_view(), name='return_with_status'),
     path('mbway_wait/<slug:order>/<str:hash>/<int:payment>/', EuPagoMBWayWaitView.as_view(), name='mbway_wait'),
     path('settings/<slug:organizer>/', EuPagoSettingsView.as_view(), name='settings'),
     
