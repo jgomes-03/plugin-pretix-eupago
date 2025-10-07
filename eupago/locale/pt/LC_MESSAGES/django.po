@@ -98,77 +98,26 @@ msgstr "Pagamento Online"
 msgid "via EuPago"
 msgstr "via EuPago"
 
-msgid "Processo de Pagamento Simples"
-msgstr "Processo de Pagamento Simples"
+msgid "You will be redirected to a secure payment page where you can choose your preferred payment method."
+msgstr "Será redirecionado para uma página de pagamento segura onde poderá escolher o seu método de pagamento preferido."
 
-msgid "Clique em 'Continuar' para prosseguir"
-msgstr "Clique em 'Continuar' para prosseguir"
+msgid "Amount to pay:"
+msgstr "Valor a pagar:"
 
-msgid "Será redirecionado para a página de pagamento"
-msgstr "Será redirecionado para a página de pagamento"
+msgid "Your order will be automatically confirmed once payment is completed."
+msgstr "A sua encomenda será confirmada automaticamente assim que o pagamento for concluído."
 
-msgid "Escolha o seu método de pagamento preferido"
-msgstr "Escolha o seu método de pagamento preferido"
+msgid "PayByLink"
+msgstr "Pagamento Online"
 
-msgid "Complete o pagamento e receba os seus bilhetes"
-msgstr "Complete o pagamento e receba os seus bilhetes"
+msgid "Powered by EuPago"
+msgstr "Processado por EuPago"
 
-msgid "Segurança Garantida"
-msgstr "Segurança Garantida"
+msgid "You will be redirected to the payment page to complete your payment. After successful payment, you will be returned to this site."
+msgstr "Será redirecionado para a página de pagamento para concluir o seu pagamento. Após o pagamento bem-sucedido, será redirecionado de volta para este site."
 
-msgid "Encriptação SSL 256-bit"
-msgstr "Encriptação SSL 256-bit"
-
-msgid "Processamento seguro"
-msgstr "Processamento seguro"
-
-msgid "Certificação PCI DSS"
-msgstr "Certificação PCI DSS"
-
-msgid "Dados protegidos"
-msgstr "Dados protegidos"
-
-msgid "Métodos Disponíveis"
-msgstr "Métodos Disponíveis"
-
-msgid "Dica:"
-msgstr "Dica:"
-
-msgid "Na próxima página poderá escolher entre cartão de crédito, MB WAY, Multibanco ou PayShop para completar o seu pagamento de forma rápida e segura."
-msgstr "Na próxima página poderá escolher entre cartão de crédito, MB WAY, Multibanco ou PayShop para completar o seu pagamento de forma rápida e segura."
-
-msgid "Pronto para Pagar!"
-msgstr "Pronto para Pagar!"
-
-msgid "Será redirecionado para a página de pagamento segura da EuPago onde poderá completar o seu pagamento. Após o pagamento bem-sucedido, será automaticamente redirecionado de volta para este site."
-msgstr "Será redirecionado para a página de pagamento segura da EuPago onde poderá completar o seu pagamento. Após o pagamento bem-sucedido, será automaticamente redirecionado de volta para este site."
-
-msgid "Resumo do Pagamento"
-msgstr "Resumo do Pagamento"
-
-msgid "Valor Total:"
-msgstr "Valor Total:"
-
-msgid "Próximos Passos"
-msgstr "Próximos Passos"
-
-msgid "Clique em 'Confirmar Pagamento'"
-msgstr "Clique em 'Confirmar Pagamento'"
-
-msgid "Escolha o método de pagamento"
-msgstr "Escolha o método de pagamento"
-
-msgid "Complete o pagamento"
-msgstr "Complete o pagamento"
-
-msgid "Confirmação Automática"
-msgstr "Confirmação Automática"
-
-msgid "A sua encomenda será confirmada automaticamente assim que recebermos a confirmação do seu pagamento. Isto normalmente acontece dentro de alguns segundos."
-msgstr "A sua encomenda será confirmada automaticamente assim que recebermos a confirmação do seu pagamento. Isto normalmente acontece dentro de alguns segundos."
-
-msgid "Será redirecionado para a página de pagamento segura da EuPago onde poderá completar o seu pagamento escolhendo entre vários métodos disponíveis."
-msgstr "Será redirecionado para a página de pagamento segura da EuPago onde poderá completar o seu pagamento escolhendo entre vários métodos disponíveis."
+msgid "Your order will be confirmed as soon as we receive confirmation of your payment."
+msgstr "A sua encomenda será confirmada assim que recebermos a confirmação do seu pagamento."
 
 # Payment method names
 msgid "Credit Card Legacy(EuPago)"
@@ -251,3 +200,132 @@ msgstr "Pagar com MB ou Cartão de Crédito"
 # MB and Credit Card method
 msgid "MB and Credit Card"
 msgstr "MB e Cartão de Crédito"
+
+# User messages from views.py
+msgid "Payment confirmed successfully!"
+msgstr "Pagamento confirmado com sucesso!"
+
+msgid "Your payment is being processed. You will receive confirmation shortly."
+msgstr "O seu pagamento está a ser processado. Receberá confirmação em breve."
+
+msgid "Your payment was not completed. Please try again or choose a different payment method."
+msgstr "O seu pagamento não foi concluído. Por favor tente novamente ou escolha um método de pagamento diferente."
+
+msgid "Payment process was interrupted. You can try again when ready."
+msgstr "O processo de pagamento foi interrompido. Pode tentar novamente quando estiver pronto."
+
+msgid "Payment is being processed. You will receive confirmation shortly."
+msgstr "O pagamento está a ser processado. Receberá confirmação em breve."
+
+msgid "Payment failed. Please try again."
+msgstr "Pagamento falhou. Por favor tente novamente."
+
+msgid "MBWay payment was cancelled or failed. Please try again."
+msgstr "O pagamento MBWay foi cancelado ou falhou. Por favor tente novamente."
+
+# Admin settings messages
+msgid "Your changes have been saved."
+msgstr "As suas alterações foram guardadas."
+
+msgid "We could not save your changes. See below for details."
+msgstr "Não conseguimos guardar as suas alterações. Veja os detalhes abaixo."
+
+msgid "Please provide a payment ID."
+msgstr "Por favor forneça um ID de pagamento."
+
+msgid "Payment not found."
+msgstr "Pagamento não encontrado."
+
+msgid "Payment not found or does not belong to this organizer."
+msgstr "Pagamento não encontrado ou não pertence a este organizador."
+
+msgid "Payment provider does not support status checking."
+msgstr "O fornecedor de pagamento não suporta verificação de estado."
+
+msgid "Error checking payment status: {}"
+msgstr "Erro ao verificar o estado do pagamento: {}"
+
+msgid "Payment status updated successfully! Payment {} is now {}"
+msgstr "Estado do pagamento atualizado com sucesso! O pagamento {} está agora {}"
+
+msgid "Payment status checked. Current status: {} (no update needed)"
+msgstr "Estado do pagamento verificado. Estado atual: {} (nenhuma atualização necessária)"
+
+msgid "Payment status: {}"
+msgstr "Estado do pagamento: {}"
+
+msgid "An error occurred while checking payment status."
+msgstr "Ocorreu um erro ao verificar o estado do pagamento."
+
+msgid "Please provide a payment ID for webhook simulation."
+msgstr "Por favor forneça um ID de pagamento para simulação de webhook."
+
+msgid "Payment {} was manually marked as confirmed via simulated webhook."
+msgstr "O pagamento {} foi manualmente marcado como confirmado via webhook simulado."
+
+msgid "Payment {} was manually marked as failed via simulated webhook."
+msgstr "O pagamento {} foi manualmente marcado como falhou via webhook simulado."
+
+msgid "Payment {} was manually marked as cancelled via simulated webhook."
+msgstr "O pagamento {} foi manualmente marcado como cancelado via webhook simulado."
+
+msgid "Unknown webhook status: {}"
+msgstr "Estado de webhook desconhecido: {}"
+
+msgid "Payment status is now: {}"
+msgstr "O estado do pagamento é agora: {}"
+
+msgid "An error occurred during webhook simulation."
+msgstr "Ocorreu um erro durante a simulação do webhook."
+
+msgid "EuPago Settings"
+msgstr "Configurações EuPago"
+
+# Additional settings form fields
+msgid "Channel ID"
+msgstr "ID do Canal"
+
+msgid "Your EuPago Channel ID (found in backoffice under Channels)"
+msgstr "O seu ID de Canal da EuPago (encontrado no backoffice em Canais)"
+
+msgid "Endpoint"
+msgstr "Endpoint"
+
+msgid "Choose between sandbox (testing) and live environment"
+msgstr "Escolha entre ambiente sandbox (testes) e produção"
+
+msgid "Sandbox"
+msgstr "Sandbox"
+
+msgid "Live"
+msgstr "Produção"
+
+msgid "Debug Mode"
+msgstr "Modo de Depuração"
+
+msgid "Enable additional debugging information. When enabled, webhook signature validation errors will be logged in detail, and invalid signatures will be accepted for testing purposes. Disable in production."
+msgstr "Ativar informação adicional de depuração. Quando ativado, os erros de validação de assinatura do webhook serão registados em detalhe, e assinaturas inválidas serão aceites para fins de teste. Desative em produção."
+
+msgid "Credit Card Description"
+msgstr "Descrição do Cartão de Crédito"
+
+msgid "Description shown to customers for credit card payments"
+msgstr "Descrição mostrada aos clientes para pagamentos com cartão de crédito"
+
+msgid "MBWay Description"
+msgstr "Descrição do MBWay"
+
+msgid "Description shown to customers for MBWay payments"
+msgstr "Descrição mostrada aos clientes para pagamentos MBWay"
+
+msgid "Multibanco Description"
+msgstr "Descrição do Multibanco"
+
+msgid "Description shown to customers for Multibanco payments"
+msgstr "Descrição mostrada aos clientes para pagamentos Multibanco"
+
+msgid "PayShop Description"
+msgstr "Descrição do PayShop"
+
+msgid "Description shown to customers for PayShop payments"
+msgstr "Descrição mostrada aos clientes para pagamentos PayShop"
