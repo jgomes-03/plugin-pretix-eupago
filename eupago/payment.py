@@ -1,10 +1,10 @@
+import base64
 import hashlib
 import hmac
 import json
 import logging
 import requests
 from collections import OrderedDict
-import json
 from decimal import Decimal
 from django import forms
 from django.core.exceptions import ValidationError
@@ -18,6 +18,7 @@ from pretix.base.forms import SecretKeySettingsField
 from pretix.base.models import Event, Order, OrderPayment
 from pretix.base.payment import BasePaymentProvider, PaymentException
 from pretix.base.settings import SettingsSandbox
+from pretix.multidomain.urlreverse import build_absolute_uri
 from pretix.multidomain.urlreverse import build_absolute_uri
 
 logger = logging.getLogger('pretix.plugins.eupago')
@@ -34,14 +35,15 @@ class EuPagoBaseProvider(BasePaymentProvider):
         self.organizer = event.organizer
 
     def get_setting(self, name, default=None):
-        """Get a setting with proper prefix handling"""
-        # First try with payment_eupago prefix (standard pretix convention)
+        """Get a setting from organizer-level configuration"""
+        # Default implementation for general payment methods
+        # First try with payment_eupago prefix (standard pretix convention for legacy settings)
         try:
             value = self.organizer.settings.get(f'payment_eupago_{name}', None)
         except Exception:
             value = None
         
-        # If not found, try with just eupago prefix (backward compatibility)
+        # If not found, try with just eupago prefix (organizer-level configuration)
         if value is None:
             try:
                 value = self.organizer.settings.get(f'eupago_{name}', default)
@@ -49,6 +51,26 @@ class EuPagoBaseProvider(BasePaymentProvider):
                 value = default
                 
         return value
+    
+    def get_mb_cc_setting(self, name, default=None):
+        """Get MB/Credit Card specific setting with debug logging"""
+        try:
+            value = self.organizer.settings.get(f'eupago_mb_cc_{name}', default)
+            logger.debug(f'MB/CC setting eupago_mb_cc_{name}: {value[:10]}...' if value else f'MB/CC setting eupago_mb_cc_{name}: None')
+            return value
+        except Exception as e:
+            logger.error(f'Error getting MB/CC setting eupago_mb_cc_{name}: {e}')
+            return default
+    
+    def get_mbway_setting(self, name, default=None):
+        """Get MBWay specific setting with debug logging"""
+        try:
+            value = self.organizer.settings.get(f'eupago_mbway_{name}', default)
+            logger.debug(f'MBWay setting eupago_mbway_{name}: {value[:10]}...' if value else f'MBWay setting eupago_mbway_{name}: None')
+            return value
+        except Exception as e:
+            logger.error(f'Error getting MBWay setting eupago_mbway_{name}: {e}')
+            return default
     
     @property
     def debug_mode(self):
@@ -132,27 +154,25 @@ class EuPagoBaseProvider(BasePaymentProvider):
         
         headers = {'Content-Type': 'application/json'}
         api_key = self.get_setting("api_key")
+        logger.debug(f'EuPagoBaseProvider._get_headers: api_key={"[CONFIGURED]" if api_key else "[NOT CONFIGURED]"}, payment_method={payment_method}')
         
         # Add authentication based on payment method
         if payment_method and AUTH_METHODS.get(payment_method) == 'header':
             if api_key:
-                # EuPago Credit Card expects "ApiKey" header (not Authorization)
-                if payment_method == 'creditcard':
-                    headers['ApiKey'] = api_key
-                    logger.debug(f'Adding API key to ApiKey header for {payment_method}')
-                else:
-                    # Other methods might use Authorization
-                    headers['Authorization'] = f'ApiKey {api_key}'
-                    logger.debug(f'Adding API key to Authorization header for {payment_method}')
+                # EuPago API expects the API key directly in Authorization header
+                # Format: Authorization: xxxx-xxxx-xxxx-xxxx-xxxx
+                headers['Authorization'] = f'ApiKey {api_key}'
+                logger.info(f'EuPagoBaseProvider: Adding API key to Authorization header for {payment_method}')
             else:
-                logger.error(f'No API key configured for {payment_method}')
+                logger.error(f'EuPagoBaseProvider: No API key configured for {payment_method}')
         elif payment_method and AUTH_METHODS.get(payment_method) == 'oauth':
             if api_key:
                 headers['Authorization'] = f'Bearer {api_key}'
-                logger.debug(f'Adding Bearer token for {payment_method}')
+                logger.info(f'EuPagoBaseProvider: Adding Bearer token for {payment_method}')
             else:
-                logger.error(f'No API key configured for {payment_method}')
-            
+                logger.error(f'EuPagoBaseProvider: No API key configured for {payment_method}')
+        
+        logger.debug(f'EuPagoBaseProvider: Final headers: {headers}')        
         return headers
 
     def _make_api_request(self, endpoint: str, data: dict, method: str = 'POST', payment_method: str = None) -> dict:
@@ -499,11 +519,13 @@ class EuPagoBaseProvider(BasePaymentProvider):
         
         results = []
         providers = [
-            EuPagoMBWay,
-            EuPagoMultibanco, 
-            EuPagoCreditCard,
-            EuPagoPayShop,
-            EuPagoPayByLink
+            EuPagoMBCreditCard,      # New: MB and Credit Card
+            EuPagoMBWayNew,          # New: MBWay with dedicated config
+            EuPagoMBWay,            # Legacy
+            EuPagoMultibanco,       # Legacy
+            EuPagoCreditCard,       # Legacy
+            EuPagoPayShop,          # Legacy
+            EuPagoPayByLink,        # Legacy
         ]
         
         try:
@@ -532,7 +554,7 @@ class EuPagoBaseProvider(BasePaymentProvider):
 
 class EuPagoCreditCard(EuPagoBaseProvider):
     identifier = 'eupago_cc'
-    verbose_name = _('Credit Card (EuPago)')
+    verbose_name = _('Credit Card Legacy(EuPago)')
     method = 'creditcard'
     payment_form_template_name = 'pretixplugins/eupago/checkout_payment_form_cc.html'
 
@@ -562,21 +584,50 @@ class EuPagoCreditCard(EuPagoBaseProvider):
         if payment.amount > Decimal('3999.00'):
             raise PaymentException(_('Credit card payments are limited to €3999. Please use a different payment method.'))
         
+        # Construir as URLs de retorno para diferentes status
+        success_url = build_absolute_uri(
+            self.event,
+            'plugins:eupago:return_with_status',
+            kwargs={
+                'order': payment.order.code,
+                'hash': payment.order.tagged_secret('plugins:eupago'),
+                'payment': payment.pk,
+                'status': 'success'
+            }
+        )
+        
+        fail_url = build_absolute_uri(
+            self.event,
+            'plugins:eupago:return_with_status',
+            kwargs={
+                'order': payment.order.code,
+                'hash': payment.order.tagged_secret('plugins:eupago'),
+                'payment': payment.pk,
+                'status': 'fail'
+            }
+        )
+        
+        back_url = build_absolute_uri(
+            self.event,
+            'plugins:eupago:return_with_status',
+            kwargs={
+                'order': payment.order.code,
+                'hash': payment.order.tagged_secret('plugins:eupago'),
+                'payment': payment.pk,
+                'status': 'back'
+            }
+        )
+        
         # Preparar dados conforme API EuPago Credit Card
         # Nota: chave_api vai no header, não no body
         data = {
             'valor': str(payment.amount),
             'id': payment.full_id,  # Identificador único do pagamento
             'canal': self._get_channel_id(),
-            'resposta_url': build_absolute_uri(
-                self.event,
-                'plugins:eupago:return',
-                kwargs={
-                    'order': payment.order.code,
-                    'hash': payment.order.tagged_secret('plugins:eupago'),
-                    'payment': payment.pk,
-                }
-            ),
+            'resposta_url': success_url,  # URL principal de retorno (sucesso)
+            'url_ok': success_url,  # URL de sucesso
+            'url_ko': fail_url,  # URL de falha
+            'url_cancel': back_url,  # URL de cancelamento
         }
         
         # Adicionar descrição personalizada se configurada
@@ -722,9 +773,292 @@ class EuPagoCreditCard(EuPagoBaseProvider):
         return True
 
 
+class EuPagoMBCreditCard(EuPagoBaseProvider):
+    """MB and Credit Card payment method using MB/CC specific configuration"""
+    identifier = 'eupago_mb_creditcard'
+    verbose_name = _('MB and Credit Card (EuPago)')
+    method = 'paybylink'
+    payment_form_template_name = 'pretixplugins/eupago/checkout_payment_form_mb_creditcard.html'
+    
+
+    @property
+    def settings_form_fields(self):
+        """Use base settings form fields - no method-specific configuration needed"""
+        return super().settings_form_fields
+
+    def _get_headers(self, payment_method: str = None) -> dict:
+        """Get headers with MB/Credit Card specific API key"""
+        headers = {'Content-Type': 'application/json'}
+        
+        # Use MB/Credit Card specific API key
+        api_key = self.get_mb_cc_setting("api_key")
+        logger.debug(f'EuPagoMBCreditCard._get_headers: api_key={"[CONFIGURED]" if api_key else "[NOT CONFIGURED]"}, payment_method={payment_method}')
+        
+        if api_key:
+            # EuPago PayByLink expects just the API key in Authorization header
+            headers['Authorization'] = api_key
+            logger.info(f'EuPagoMBCreditCard: Adding MB/CC specific API key to Authorization header')
+        else:
+            logger.error(f'EuPagoMBCreditCard: No MB/CC API key configured')
+        
+        logger.debug(f'EuPagoMBCreditCard: Final headers: {headers}')
+        return headers
+
+    def _make_api_request(self, endpoint: str, data: dict, method: str = 'POST', payment_method: str = None) -> dict:
+        """Make API request to EuPago using MB/Credit Card specific configuration"""
+        from .config import AUTH_METHODS
+        
+        url = f"{self._get_api_base_url()}{endpoint}"
+        headers = self._get_headers(payment_method)
+        api_key = self.get_mb_cc_setting("api_key")  # Use MB/CC specific API key
+        
+        logger.debug(f'Making {method} request to {url} for {payment_method} with MB/CC config')
+        logger.debug(f'Headers: {headers}')
+        logger.debug(f'Data: {data}')
+        
+        try:
+            if method == 'POST':
+                response = requests.post(url, json=data, headers=headers, timeout=30)
+            elif method == 'GET':
+                response = requests.get(url, params=data, headers=headers, timeout=30)
+            else:
+                raise ValueError(f"Unsupported HTTP method: {method}")
+            
+            logger.debug(f'Response status: {response.status_code}')
+            logger.debug(f'Response text: {response.text}')
+            
+            response.raise_for_status()
+            return response.json()
+            
+        except requests.RequestException as e:
+            logger.error(f'EuPago API request failed: {e}')
+            if hasattr(e, 'response') and e.response is not None:
+                logger.error(f'Response status: {e.response.status_code}')
+                logger.error(f'Response text: {e.response.text}')
+                
+                # Specific error messages for common issues
+                if e.response.status_code == 401:
+                    raise PaymentException(_('MB/Credit Card authentication failed. Please check your MB/CC API key configuration.'))
+                elif e.response.status_code == 403:
+                    raise PaymentException(_('MB/Credit Card access denied. Please verify your MB/CC API permissions.'))
+                    
+            raise PaymentException(_('MB/Credit Card payment provider communication failed. Please try again later.'))
+
+    def _validate_webhook_signature(self, payload: str, signature: str) -> bool:
+        """Validate webhook signature using MB/Credit Card specific webhook secret"""
+        import json, hmac, hashlib, base64, logging
+        logger = logging.getLogger('pretix.plugins.eupago')
+
+        # Use MB/Credit Card specific webhook secret
+        webhook_secret = self.get_mb_cc_setting('webhook_secret') or ''
+        if not webhook_secret:
+            logger.warning('No MB/CC webhook secret configured - skipping signature validation')
+            return True
+
+        if not signature:
+            logger.warning('No webhook signature provided')
+            return False
+
+        # 2) decidir a mensagem a assinar
+        try:
+            body = json.loads(payload)
+            if isinstance(body, dict) and isinstance(body.get('data'), str):
+                # ENCRIPTADO: assina exatamente o string do campo "data"
+                msg_bytes = body['data'].encode('utf-8')
+            else:
+                # NÃO ENCRIPTADO: assina o corpo inteiro
+                msg_bytes = payload.encode('utf-8')
+        except Exception:
+            # JSON inválido → assina o corpo inteiro tal como chegou
+            msg_bytes = payload.encode('utf-8')
+
+        # 3) HMAC-SHA256 e comparação em tempo constante
+        expected_bin = hmac.new(webhook_secret.encode('utf-8'), msg_bytes, hashlib.sha256).digest()
+        try:
+            received_bin = base64.b64decode(signature)
+        except Exception as e:
+            logger.error(f'Failed to base64-decode X-Signature: {e}')
+            return False
+
+        ok = hmac.compare_digest(expected_bin, received_bin)
+
+        # debug
+        if getattr(self, 'debug_mode', False) or not ok:
+            logger.info(f'Expected signature (base64): {base64.b64encode(expected_bin).decode()}')
+            logger.info(f'Received  signature (base64): {signature}')
+            logger.info(f'Signatures match: {ok}')
+
+        return ok
+
+    def execute_payment(self, request: HttpRequest, payment: OrderPayment):
+        """Execute MB/Credit Card payment via PayByLink"""
+        from .config import API_ENDPOINTS
+        
+        logger.info(f'EuPagoMBCreditCard.execute_payment called for {payment.full_id} - Amount: €{payment.amount}')
+        
+        # Construir as URLs de retorno usando o mesmo padrão do PayByLink
+        return_url_base = build_absolute_uri(
+            self.event,
+            'plugins:eupago:return',
+            kwargs={
+                'order': payment.order.code,
+                'hash': payment.order.tagged_secret('plugins:eupago'),
+                'payment': payment.pk,
+            }
+        )
+        
+        # URLs para os diferentes status
+        success_url = build_absolute_uri(
+            self.event,
+            'plugins:eupago:return_with_status',
+            kwargs={
+                'order': payment.order.code,
+                'hash': payment.order.tagged_secret('plugins:eupago'),
+                'payment': payment.pk,
+                'status': 'success'
+            }
+        )
+        
+        fail_url = build_absolute_uri(
+            self.event,
+            'plugins:eupago:return_with_status',
+            kwargs={
+                'order': payment.order.code,
+                'hash': payment.order.tagged_secret('plugins:eupago'),
+                'payment': payment.pk,
+                'status': 'fail'
+            }
+        )
+        
+        back_url = build_absolute_uri(
+            self.event,
+            'plugins:eupago:return_with_status',
+            kwargs={
+                'order': payment.order.code,
+                'hash': payment.order.tagged_secret('plugins:eupago'),
+                'payment': payment.pk,
+                'status': 'back'
+            }
+        )
+        
+        # Usar PayByLink API sem preferência específica (vai mostrar MB e cartão de crédito)
+        data = {
+            'payment': {
+                'amount': {
+                    'currency': 'EUR',
+                    'value': float(payment.amount)
+                },
+                'shipping': {
+                    'value': 0,
+                    'currency': 'EUR'
+                },
+                'lang': 'PT',
+                'identifier': payment.full_id,
+                'successUrl': success_url,
+                'failUrl': fail_url,
+                'backUrl': back_url
+            }
+        }
+        
+        # Adicionar descrição personalizada se configurada
+        mb_cc_description = self.get_setting('mb_creditcard_description') or _('Pay with MB or Credit Card')
+        data['payment']['description'] = mb_cc_description
+
+        try:
+            logger.info(f'Creating MB/CC PayByLink payment for {payment.full_id}: €{payment.amount}')
+            logger.info(f'MB/CC PayByLink data being sent: {data}')
+            
+            response = self._make_api_request(
+                API_ENDPOINTS['paybylink'], 
+                data, 
+                payment_method='paybylink'  # Use PayByLink endpoint
+            )
+            
+            logger.info(f'MB/CC PayByLink API response for {payment.full_id}: {response}')
+            
+            # Verificar se a resposta contém URL de pagamento
+            payment_url = None
+            
+            # Check for URL in different response structures
+            if response.get('url'):
+                payment_url = response.get('url')
+            elif response.get('redirect_url'):
+                payment_url = response.get('redirect_url')
+            elif response.get('link'):
+                payment_url = response.get('link')
+            elif response.get('paymentUrl'):
+                payment_url = response.get('paymentUrl')
+            elif response.get('redirectUrl'):
+                payment_url = response.get('redirectUrl')
+            elif isinstance(response.get('data'), dict) and response.get('data').get('paymentUrl'):
+                payment_url = response.get('data').get('paymentUrl')
+                
+            logger.info(f'Extracted MB/CC payment URL: {payment_url}')
+            
+            if payment_url:
+                # Guardar informações do pagamento
+                payment_info = {
+                    'payment_url': payment_url,
+                    'transaction_id': (
+                        response.get('transactionId') or 
+                        response.get('id') or 
+                        (response.get('data', {}).get('transactionId') if isinstance(response.get('data'), dict) else None)
+                    ),
+                    'reference': (
+                        response.get('referencia') or 
+                        response.get('reference') or 
+                        (response.get('data', {}).get('reference') if isinstance(response.get('data'), dict) else None)
+                    ),
+                    'api_response': response,
+                    'method': 'mb_creditcard',
+                    'preferred_method': 'mb_cc'
+                }
+                
+                payment.info = json.dumps(payment_info)
+                payment.state = OrderPayment.PAYMENT_STATE_PENDING
+                payment.save(update_fields=['info', 'state'])
+                
+                logger.info(f'MB/CC PayByLink payment {payment.full_id} initialized successfully')
+                return payment_url
+            else:
+                error_msg = response.get('error') or response.get('message') or 'No payment URL returned'
+                logger.error(f'MB/CC PayByLink payment initialization failed for {payment.full_id}: {error_msg}')
+                raise PaymentException(_('MB/CC payment initialization failed: {}').format(error_msg))
+                
+        except PaymentException:
+            raise  # Re-raise PaymentExceptions
+        except Exception as e:
+            logger.error(f'MB/CC PayByLink payment failed for {payment.full_id}: {e}', exc_info=True)
+            payment.fail(info={'error': str(e), 'method': 'mb_creditcard'})
+            raise PaymentException(_('MB/CC payment failed. Please try again later.'))
+
+    def checkout_confirm_render(self, request, **kwargs):
+        """Render confirmation for MB/Credit Card PayByLink payment"""
+        logger.info(f'EuPagoMBCreditCard.checkout_confirm_render called for event: {self.event.slug}')
+        
+        template = get_template('pretixplugins/eupago/checkout_payment_confirm_paybylink.html')
+        ctx = {
+            'request': request, 
+            'event': self.event,
+            'settings': self.settings,
+            'provider': self,
+            'method_name': _('MB and Credit Card'),
+            'payment_description': self.get_setting('mb_creditcard_description') or _('Pay with MB or Credit Card'),
+        }
+        return template.render(ctx)
+        
+    def checkout_prepare(self, request, cart):
+        """Prepare checkout for MB/Credit Card PayByLink payment"""
+        return True  # No special preparation needed
+    
+    def payment_is_valid_session(self, request):
+        """Check if payment session is valid"""
+        return True  # PayByLink payments are handled extern
+
+
 class EuPagoMBWay(EuPagoBaseProvider):
     identifier = 'eupago_mbway'
-    verbose_name = _('MBWay (EuPago)')
+    verbose_name = _('MBWay Legacy(EuPago)')
     method = 'mbway'
 
     @property
@@ -755,7 +1089,6 @@ class EuPagoMBWay(EuPagoBaseProvider):
     def execute_payment(self, request: HttpRequest, payment: OrderPayment):
         """Execute MBWay payment"""
         from .config import API_ENDPOINTS
-        from pretix.multidomain.urlreverse import build_absolute_uri
         
         # Try multiple ways to get the phone number
         phone = None
@@ -825,9 +1158,315 @@ class EuPagoMBWay(EuPagoBaseProvider):
             raise PaymentException(_('MBWay payment failed. Please try again.'))
 
 
+class EuPagoMBWayNew(EuPagoBaseProvider):
+    """New MBWay payment method via PayByLink using MBWay specific configuration"""
+    identifier = 'eupago_mbway_new'
+    verbose_name = _('MBWay')
+    method = 'mbway_paybylink'
+
+    @property
+    def payment_form_fields(self):
+        """No form fields needed - phone number will be entered on EuPago's page"""
+        from collections import OrderedDict
+        return OrderedDict()
+
+    @property
+    def settings_form_fields(self):
+        """Use base settings form fields - no method-specific configuration needed"""
+        return super().settings_form_fields
+
+    def _get_headers(self, payment_method: str = None) -> dict:
+        """Get headers with MBWay specific API key"""
+        headers = {'Content-Type': 'application/json'}
+        
+        # Use MBWay specific API key
+        api_key = self.get_mbway_setting("api_key")
+        logger.debug(f'EuPagoMBWayNew._get_headers: api_key={"[CONFIGURED]" if api_key else "[NOT CONFIGURED]"}, payment_method={payment_method}')
+        
+        if api_key:
+            # EuPago PayByLink expects just the API key in Authorization header
+            headers['Authorization'] = api_key
+            logger.info(f'EuPagoMBWayNew: Adding MBWay specific API key to Authorization header')
+        else:
+            logger.error(f'EuPagoMBWayNew: No MBWay API key configured')
+        
+        logger.debug(f'EuPagoMBWayNew: Final headers: {headers}')
+        return headers
+
+    def _make_api_request(self, endpoint: str, data: dict, method: str = 'POST', payment_method: str = None) -> dict:
+        """Make API request to EuPago using MBWay specific configuration"""
+        from .config import AUTH_METHODS
+        
+        url = f"{self._get_api_base_url()}{endpoint}"
+        headers = self._get_headers(payment_method)
+        api_key = self.get_mbway_setting("api_key")  # Use MBWay specific API key
+        
+        # Add API key to body for certain payment methods
+        if payment_method and AUTH_METHODS.get(payment_method) == 'body':
+            if api_key:
+                data['chave'] = api_key
+                logger.debug(f'Adding MBWay API key to body for {payment_method}')
+            else:
+                logger.error(f'No MBWay API key configured for {payment_method}')
+        
+        logger.debug(f'Making {method} request to {url} for {payment_method} with MBWay config')
+        logger.debug(f'Headers: {headers}')
+        logger.debug(f'Data: {data}')
+        
+        try:
+            if method == 'POST':
+                response = requests.post(url, json=data, headers=headers, timeout=30)
+            elif method == 'GET':
+                response = requests.get(url, params=data, headers=headers, timeout=30)
+            else:
+                raise ValueError(f"Unsupported HTTP method: {method}")
+            
+            logger.debug(f'Response status: {response.status_code}')
+            logger.debug(f'Response text: {response.text}')
+            
+            response.raise_for_status()
+            return response.json()
+            
+        except requests.RequestException as e:
+            logger.error(f'EuPago API request failed: {e}')
+            if hasattr(e, 'response') and e.response is not None:
+                logger.error(f'Response status: {e.response.status_code}')
+                logger.error(f'Response text: {e.response.text}')
+                
+                # Specific error messages for common issues
+                if e.response.status_code == 401:
+                    raise PaymentException(_('MBWay authentication failed. Please check your MBWay API key configuration.'))
+                elif e.response.status_code == 403:
+                    raise PaymentException(_('MBWay access denied. Please verify your MBWay API permissions.'))
+                    
+            raise PaymentException(_('MBWay payment provider communication failed. Please try again later.'))
+
+    def _validate_webhook_signature(self, payload: str, signature: str) -> bool:
+        """Validate webhook signature using MBWay specific webhook secret"""
+        import json, hmac, hashlib, base64, logging
+        logger = logging.getLogger('pretix.plugins.eupago')
+
+        # Use MBWay specific webhook secret
+        webhook_secret = self.get_mbway_setting('webhook_secret') or ''
+        if not webhook_secret:
+            logger.warning('No MBWay webhook secret configured - skipping signature validation')
+            return True
+
+        if not signature:
+            logger.warning('No webhook signature provided')
+            return False
+
+        # 2) decidir a mensagem a assinar
+        try:
+            body = json.loads(payload)
+            if isinstance(body, dict) and isinstance(body.get('data'), str):
+                # ENCRIPTADO: assina exatamente o string do campo "data"
+                msg_bytes = body['data'].encode('utf-8')
+            else:
+                # NÃO ENCRIPTADO: assina o corpo inteiro
+                msg_bytes = payload.encode('utf-8')
+        except Exception:
+            msg_bytes = payload.encode('utf-8')
+
+        # 3) HMAC-SHA256 e comparação em tempo constante
+        expected_bin = hmac.new(webhook_secret.encode('utf-8'), msg_bytes, hashlib.sha256).digest()
+        try:
+            received_bin = base64.b64decode(signature)
+        except Exception as e:
+            logger.error(f'Failed to base64-decode X-Signature: {e}')
+            return False
+
+        ok = hmac.compare_digest(expected_bin, received_bin)
+
+        # debug
+        if getattr(self, 'debug_mode', False) or not ok:
+            logger.info(f'Expected signature (base64): {base64.b64encode(expected_bin).decode()}')
+            logger.info(f'Received  signature (base64): {signature}')
+            logger.info(f'Signatures match: {ok}')
+
+        return ok
+
+    def execute_payment(self, request: HttpRequest, payment: OrderPayment):
+        """Execute MBWay payment via PayByLink"""
+        from .config import API_ENDPOINTS
+        
+        logger.info(f'EuPagoMBWayNew.execute_payment called for {payment.full_id} - Amount: €{payment.amount}')
+        
+        # Debug: Check if MBWay API key is configured
+        mbway_api_key = self.get_mbway_setting("api_key")
+        logger.info(f'MBWay API key configured: {"Yes" if mbway_api_key else "No"}')
+        if mbway_api_key:
+            logger.info(f'MBWay API key (first 10 chars): {mbway_api_key[:10]}...')
+        else:
+            # Also check if there's a general API key configured as fallback
+            general_api_key = self.get_setting("api_key")
+            logger.info(f'General API key as fallback: {"Yes" if general_api_key else "No"}')
+            if general_api_key:
+                logger.info(f'General API key (first 10 chars): {general_api_key[:10]}...')
+        
+        # Construir as URLs de retorno usando o mesmo padrão do PayByLink
+        return_url_base = build_absolute_uri(
+            self.event,
+            'plugins:eupago:return',
+            kwargs={
+                'order': payment.order.code,
+                'hash': payment.order.tagged_secret('plugins:eupago'),
+                'payment': payment.pk,
+            }
+        )
+        
+        # URLs para os diferentes status
+        success_url = build_absolute_uri(
+            self.event,
+            'plugins:eupago:return_with_status',
+            kwargs={
+                'order': payment.order.code,
+                'hash': payment.order.tagged_secret('plugins:eupago'),
+                'payment': payment.pk,
+                'status': 'success'
+            }
+        )
+        
+        fail_url = build_absolute_uri(
+            self.event,
+            'plugins:eupago:return_with_status',
+            kwargs={
+                'order': payment.order.code,
+                'hash': payment.order.tagged_secret('plugins:eupago'),
+                'payment': payment.pk,
+                'status': 'fail'
+            }
+        )
+        
+        back_url = build_absolute_uri(
+            self.event,
+            'plugins:eupago:return_with_status',
+            kwargs={
+                'order': payment.order.code,
+                'hash': payment.order.tagged_secret('plugins:eupago'),
+                'payment': payment.pk,
+                'status': 'back'
+            }
+        )
+        
+        # Usar PayByLink API com preferência para MBWay
+        data = {
+            'payment': {
+                'amount': {
+                    'currency': 'EUR',
+                    'value': float(payment.amount)
+                },
+                'shipping': {
+                    'value': 0,
+                    'currency': 'EUR'
+                },
+                'lang': 'PT',
+                'identifier': payment.full_id,
+                'successUrl': success_url,
+                'failUrl': fail_url,
+                'backUrl': back_url
+            }
+        }
+        
+        # Adicionar descrição personalizada se configurada
+        mbway_description = self.get_setting('mbway_description') or _('Pay with MBWay using your mobile phone')
+        data['payment']['description'] = mbway_description
+
+        try:
+            logger.info(f'Creating MBWay PayByLink payment for {payment.full_id}: €{payment.amount}')
+            logger.info(f'MBWay PayByLink data being sent: {data}')
+            
+            response = self._make_api_request(
+                API_ENDPOINTS['paybylink'], 
+                data, 
+                payment_method='paybylink'  # Use PayByLink endpoint
+            )
+            
+            logger.info(f'MBWay PayByLink API response for {payment.full_id}: {response}')
+            
+            # Verificar se a resposta contém URL de pagamento
+            payment_url = None
+            
+            # Check for URL in different response structures
+            if response.get('url'):
+                payment_url = response.get('url')
+            elif response.get('redirect_url'):
+                payment_url = response.get('redirect_url')
+            elif response.get('link'):
+                payment_url = response.get('link')
+            elif response.get('paymentUrl'):
+                payment_url = response.get('paymentUrl')
+            elif response.get('redirectUrl'):
+                payment_url = response.get('redirectUrl')
+            elif isinstance(response.get('data'), dict) and response.get('data').get('paymentUrl'):
+                payment_url = response.get('data').get('paymentUrl')
+                
+            logger.info(f'Extracted MBWay payment URL: {payment_url}')
+            
+            if payment_url:
+                # Guardar informações do pagamento
+                payment_info = {
+                    'payment_url': payment_url,
+                    'transaction_id': (
+                        response.get('transactionId') or 
+                        response.get('id') or 
+                        (response.get('data', {}).get('transactionId') if isinstance(response.get('data'), dict) else None)
+                    ),
+                    'reference': (
+                        response.get('referencia') or 
+                        response.get('reference') or 
+                        (response.get('data', {}).get('reference') if isinstance(response.get('data'), dict) else None)
+                    ),
+                    'api_response': response,
+                    'method': 'mbway_paybylink',
+                    'preferred_method': 'mbway'
+                }
+                
+                payment.info = json.dumps(payment_info)
+                payment.state = OrderPayment.PAYMENT_STATE_PENDING
+                payment.save(update_fields=['info', 'state'])
+                
+                logger.info(f'MBWay PayByLink payment {payment.full_id} initialized successfully')
+                return payment_url
+            else:
+                error_msg = response.get('error') or response.get('message') or 'No payment URL returned'
+                logger.error(f'MBWay PayByLink payment initialization failed for {payment.full_id}: {error_msg}')
+                raise PaymentException(_('MBWay payment initialization failed: {}').format(error_msg))
+                
+        except PaymentException:
+            raise  # Re-raise PaymentExceptions
+        except Exception as e:
+            logger.error(f'MBWay PayByLink payment failed for {payment.full_id}: {e}', exc_info=True)
+            payment.fail(info={'error': str(e), 'method': 'mbway_paybylink'})
+            raise PaymentException(_('MBWay payment failed. Please try again later.'))
+
+    def checkout_confirm_render(self, request, **kwargs):
+        """Render confirmation for MBWay PayByLink payment"""
+        logger.info(f'EuPagoMBWayNew.checkout_confirm_render called for event: {self.event.slug}')
+        
+        template = get_template('pretixplugins/eupago/checkout_payment_confirm_paybylink.html')
+        ctx = {
+            'request': request, 
+            'event': self.event,
+            'settings': self.settings,
+            'provider': self,
+            'method_name': _('MBWay'),
+            'payment_description': self.get_setting('mbway_description') or _('Pay with MBWay using your mobile phone'),
+        }
+        return template.render(ctx)
+        
+    def checkout_prepare(self, request, cart):
+        """Prepare checkout for MBWay PayByLink payment"""
+        return True  # No special preparation needed
+    
+    def payment_is_valid_session(self, request):
+        """Check if payment session is valid"""
+        return True  # PayByLink payments are handled externally
+
+
 class EuPagoMultibanco(EuPagoBaseProvider):
     identifier = 'eupago_multibanco'
-    verbose_name = _('Multibanco (EuPago)')
+    verbose_name = _('Multibanco Legacy (EuPago)')
     method = 'multibanco'
 
     @property
@@ -888,7 +1527,7 @@ class EuPagoMultibanco(EuPagoBaseProvider):
 
 class EuPagoPayShop(EuPagoBaseProvider):
     identifier = 'eupago_payshop'
-    verbose_name = _('PayShop (EuPago)')
+    verbose_name = _('PayShop Legacy (EuPago)')
     method = 'payshop'
 
     @property
@@ -900,7 +1539,7 @@ class EuPagoPayShop(EuPagoBaseProvider):
         return OrderedDict(list(base_fields.items()) + [
             ('payshop_description', forms.CharField(
                 label=_('Payment description'),
-                help_text=_('This will be displayed to customers during checkout'),
+                help_text=_('This will be displayed to customers durante checkout'),
                 required=False,
                 initial=_('Pay in cash at any PayShop location'),
             )),
@@ -949,7 +1588,7 @@ class EuPagoPayShop(EuPagoBaseProvider):
 
 class EuPagoPayByLink(EuPagoBaseProvider):
     identifier = 'eupago_paybylink'
-    verbose_name = _('Pagamento Online')
+    verbose_name = _('Pagamento Online (Legacy)')
     method = 'paybylink'
     payment_form_template_name = 'pretixplugins/eupago/checkout_payment_form_paybylink.html'
 
@@ -1073,7 +1712,7 @@ class EuPagoPayByLink(EuPagoBaseProvider):
                 payment_url = response.get('paymentUrl')
             elif response.get('redirectUrl'):
                 payment_url = response.get('redirectUrl')
-            elif isinstance(response.get('data'), dict) and response.get('data').get('paymentUrl'):
+            elif response.get('data') and isinstance(response.get('data'), dict) and response.get('data').get('paymentUrl'):
                 payment_url = response.get('data').get('paymentUrl')
                 
             logger.info(f'Extracted payment URL: {payment_url}')
@@ -1124,66 +1763,4 @@ class EuPagoPayByLink(EuPagoBaseProvider):
     
     def payment_is_valid_session(self, request):
         """Check if payment session is valid"""
-        return True  # PayByLink payments are handled externally
-    
-    def checkout_confirm_render(self, request, **kwargs):
-        """Render confirmation for PayByLink payment"""
-        logger.info(f'EuPagoPayByLink.checkout_confirm_render called for event: {self.event.slug}')
-        
-        template = get_template('pretixplugins/eupago/checkout_payment_confirm_paybylink.html')
-        ctx = {
-            'request': request, 
-            'event': self.event,
-            'settings': self.settings,
-            'provider': self,
-            'total': request.session.get('cart_total', 0)
-        }
-        
-        rendered = template.render(ctx)
-        logger.info(f'EuPagoPayByLink.checkout_confirm_render - template rendered successfully (length: {len(rendered)})')
-        
-        return rendered
-
-    def test_webhook_signature_validation(self, test_payload: str, test_signature: str, test_secret: str) -> dict:
-        """Test webhook signature validation with provided values - for debugging only"""
-        import hmac
-        import hashlib
-        import base64
-        
-        result = {
-            'payload': test_payload,
-            'signature': test_signature,
-            'secret': test_secret,
-            'validation_result': False,
-            'expected_signature': None,
-            'debug_info': {}
-        }
-        
-        try:
-            # Generate expected signature
-            expected_signature_binary = hmac.new(
-                test_secret.encode('utf-8'),
-                test_payload.encode('utf-8'),
-                hashlib.sha256
-            ).digest()
-            
-            expected_signature_b64 = base64.b64encode(expected_signature_binary).decode('utf-8')
-            result['expected_signature'] = expected_signature_b64
-            
-            # Validate
-            received_signature_binary = base64.b64decode(test_signature)
-            is_valid = hmac.compare_digest(expected_signature_binary, received_signature_binary)
-            result['validation_result'] = is_valid
-            
-            result['debug_info'] = {
-                'payload_length': len(test_payload),
-                'secret_length': len(test_secret),
-                'signature_length': len(test_signature),
-                'expected_binary_length': len(expected_signature_binary),
-                'received_binary_length': len(received_signature_binary),
-            }
-            
-        except Exception as e:
-            result['error'] = str(e)
-            
-        return result
+        return True  # PayByLink payments are handled extern
