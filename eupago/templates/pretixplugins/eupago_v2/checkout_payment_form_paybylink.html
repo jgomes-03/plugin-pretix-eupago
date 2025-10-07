@@ -5,8 +5,8 @@
     <div class="panel-heading">
         <h4 class="panel-title">
             <i class="fa fa-globe" style="margin-right: 8px; color: #4CAF50;"></i>
-            {% trans "Pagamento Online" %}
-            <small class="text-muted">{% trans "via EuPago" %}</small>
+            {% trans "via EuPago" %}
+            <!--<small class="text-muted">{% trans "via EuPago" %}</small>-->
         </h4>
     </div>
     <div class="panel-body">
@@ -16,35 +16,6 @@
                 {{ provider.settings.paybylink_description }}
             </div>
         {% endif %}
-        
-        <div class="payment-process-info" style="background: linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%); padding: 20px; margin: 15px 0; border-radius: 8px; border: 1px solid #4CAF50;">
-            <h5 style="color: #4CAF50; margin-bottom: 15px;">
-                <i class="fa fa-check-circle" style="margin-right: 5px;"></i>
-                {% trans "Processo de Pagamento Simples" %}
-            </h5>
-            <div class="row">
-                <div class="col-sm-6">
-                    <div class="step-item" style="display: flex; align-items: center; margin-bottom: 10px;">
-                        <div class="step-number" style="background: #4CAF50; color: white; border-radius: 50%; width: 25px; height: 25px; display: flex; align-items: center; justify-content: center; margin-right: 10px; font-weight: bold;">1</div>
-                        <span>{% trans "Clique em 'Continuar' para prosseguir" %}</span>
-                    </div>
-                    <div class="step-item" style="display: flex; align-items: center; margin-bottom: 10px;">
-                        <div class="step-number" style="background: #4CAF50; color: white; border-radius: 50%; width: 25px; height: 25px; display: flex; align-items: center; justify-content: center; margin-right: 10px; font-weight: bold;">2</div>
-                        <span>{% trans "Será redirecionado para a página de pagamento" %}</span>
-                    </div>
-                </div>
-                <div class="col-sm-6">
-                    <div class="step-item" style="display: flex; align-items: center; margin-bottom: 10px;">
-                        <div class="step-number" style="background: #4CAF50; color: white; border-radius: 50%; width: 25px; height: 25px; display: flex; align-items: center; justify-content: center; margin-right: 10px; font-weight: bold;">3</div>
-                        <span>{% trans "Escolha o seu método de pagamento preferido" %}</span>
-                    </div>
-                    <div class="step-item" style="display: flex; align-items: center; margin-bottom: 10px;">
-                        <div class="step-number" style="background: #4CAF50; color: white; border-radius: 50%; width: 25px; height: 25px; display: flex; align-items: center; justify-content: center; margin-right: 10px; font-weight: bold;">4</div>
-                        <span>{% trans "Complete o pagamento e receba os seus bilhetes" %}</span>
-                    </div>
-                </div>
-            </div>
-        </div>
         
         <div class="row" style="margin-top: 20px;">
             <div class="col-md-6">

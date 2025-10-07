@@ -11,25 +11,23 @@
         </h4>
     </div>
     <div class="panel-body">
-        <div class="payment-info" style="padding: 20px; margin-bottom: 20px;">
-            <p style="font-size: 16px; margin-bottom: 15px;">
-                {% trans "You will be redirected to a secure payment page where you can choose your preferred payment method." %}
-            </p>
-            
-            <div style="background: #f8f9fa; padding: 15px; border-radius: 6px; border-left: 4px solid #4CAF50;">
-                <div style="display: flex; justify-content: space-between; align-items: center;">
-                    <span style="font-weight: 500; color: #495057;">{% trans "Amount to pay:" %}</span>
-                    <span style="font-size: 24px; font-weight: bold; color: #4CAF50;">
-                        {{ payment.amount|money:event.currency }}
-                    </span>
-                </div>
+        <p style="font-size: 15px; margin-bottom: 20px;">
+            Será redirecionado para uma página de pagamento segura onde poderá escolher o seu método de pagamento preferido.
+        </p>
+        
+        <div style="background: #f8f9fa; padding: 20px; border-radius: 6px; border-left: 4px solid #4CAF50; margin-bottom: 20px;">
+            <div style="display: flex; justify-content: space-between; align-items: center;">
+                <span style="font-size: 16px; font-weight: 500; color: #495057;">Valor a pagar:</span>
+                <span style="font-size: 28px; font-weight: bold; color: #4CAF50;">
+                    {{ payment.amount|money:event.currency }}
+                </span>
             </div>
         </div>
         
         <div class="alert alert-info" style="border-left: 4px solid #17a2b8;">
             <p style="margin-bottom: 0;">
                 <i class="fa fa-info-circle"></i>
-                {% trans "Your order will be automatically confirmed once payment is completed." %}
+                A sua encomenda será confirmada automaticamente assim que o pagamento for concluído.
             </p>
         </div>
     </div>
