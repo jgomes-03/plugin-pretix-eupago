@@ -169,3 +169,85 @@ msgstr "A sua encomenda será confirmada automaticamente assim que recebermos a 
 
 msgid "Será redirecionado para a página de pagamento segura da EuPago onde poderá completar o seu pagamento escolhendo entre vários métodos disponíveis."
 msgstr "Será redirecionado para a página de pagamento segura da EuPago onde poderá completar o seu pagamento escolhendo entre vários métodos disponíveis."
+
+# Payment method names
+msgid "Credit Card Legacy(EuPago)"
+msgstr "Cartão de Crédito (EuPago - Legacy)"
+
+msgid "MB and Credit Card (EuPago)"
+msgstr "MB e Cartão de Crédito (EuPago)"
+
+msgid "MBWay Legacy(EuPago)"
+msgstr "MBWay (EuPago - Legacy)"
+
+msgid "MBWay"
+msgstr "MBWay"
+
+msgid "Multibanco Legacy (EuPago)"
+msgstr "Multibanco (EuPago - Legacy)"
+
+msgid "PayShop Legacy (EuPago)"
+msgstr "PayShop (EuPago - Legacy)"
+
+msgid "Pagamento Online (Legacy)"
+msgstr "Pagamento Online (Legacy)"
+
+# Error messages
+msgid "Authentication failed. Please check your EuPago API key configuration."
+msgstr "Autenticação falhou. Por favor verifique a configuração da sua chave API da EuPago."
+
+msgid "Access denied. Please verify your EuPago API permissions."
+msgstr "Acesso negado. Por favor verifique as permissões da sua API da EuPago."
+
+msgid "Payment provider communication failed. Please try again later."
+msgstr "Falha na comunicação com o fornecedor de pagamento. Por favor tente novamente mais tarde."
+
+msgid "Credit card payments are limited to €3999. Please use a different payment method."
+msgstr "Pagamentos com cartão de crédito estão limitados a €3999. Por favor use um método de pagamento diferente."
+
+msgid "Payment initialization failed: {}"
+msgstr "Falha na inicialização do pagamento: {}"
+
+msgid "Payment failed. Please try again later."
+msgstr "Pagamento falhou. Por favor tente novamente mais tarde."
+
+msgid "MB/Credit Card authentication failed. Please check your MB/CC API key configuration."
+msgstr "Autenticação MB/Cartão de Crédito falhou. Por favor verifique a configuração da sua chave API MB/CC."
+
+msgid "MB/Credit Card access denied. Please verify your MB/CC API permissions."
+msgstr "Acesso MB/Cartão de Crédito negado. Por favor verifique as permissões da sua API MB/CC."
+
+msgid "MB/Credit Card payment provider communication failed. Please try again later."
+msgstr "Falha na comunicação com o fornecedor de pagamento MB/Cartão de Crédito. Por favor tente novamente mais tarde."
+
+msgid "MB/CC payment initialization failed: {}"
+msgstr "Falha na inicialização do pagamento MB/CC: {}"
+
+msgid "MB/CC payment failed. Please try again later."
+msgstr "Pagamento MB/CC falhou. Por favor tente novamente mais tarde."
+
+msgid "MBWay payment provider communication failed. Please try again later."
+msgstr "Falha na comunicação com o fornecedor de pagamento MBWay. Por favor tente novamente mais tarde."
+
+msgid "Phone number is required for MBWay payments"
+msgstr "Número de telemóvel é obrigatório para pagamentos MBWay"
+
+msgid "MBWay payment initialization failed"
+msgstr "Falha na inicialização do pagamento MBWay"
+
+msgid "MBWay payment failed. Please try again."
+msgstr "Pagamento MBWay falhou. Por favor tente novamente."
+
+# Form fields
+msgid "Cardholder name"
+msgstr "Nome do titular do cartão"
+
+msgid "Name as it appears on the card (optional - can be filled on EuPago page)"
+msgstr "Nome como aparece no cartão (opcional - pode ser preenchido na página da EuPago)"
+
+msgid "Pay with MB or Credit Card"
+msgstr "Pagar com MB ou Cartão de Crédito"
+
+# MB and Credit Card method
+msgid "MB and Credit Card"
+msgstr "MB e Cartão de Crédito"
