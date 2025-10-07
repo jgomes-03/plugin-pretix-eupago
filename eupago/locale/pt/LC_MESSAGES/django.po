@@ -189,8 +189,8 @@ msgstr "Multibanco (EuPago - Legacy)"
 msgid "PayShop Legacy (EuPago)"
 msgstr "PayShop (EuPago - Legacy)"
 
-msgid "Pagamento Online (Legacy)"
-msgstr "Pagamento Online (Legacy)"
+msgid "Pagamento Online"
+msgstr "Pagamento Online"
 
 # Error messages
 msgid "Authentication failed. Please check your EuPago API key configuration."

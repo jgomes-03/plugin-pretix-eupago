@@ -1588,7 +1588,7 @@ class EuPagoPayShop(EuPagoBaseProvider):
 
 class EuPagoPayByLink(EuPagoBaseProvider):
     identifier = 'eupago_paybylink'
-    verbose_name = _('Pagamento Online (Legacy)')
+    verbose_name = _('Pagamento Online')
     method = 'paybylink'
     payment_form_template_name = 'pretixplugins/eupago/checkout_payment_form_paybylink.html'
 
