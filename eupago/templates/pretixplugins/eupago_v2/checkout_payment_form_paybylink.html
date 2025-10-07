@@ -11,72 +11,10 @@
     </div>
     <div class="panel-body">
         {% if provider.settings.paybylink_description %}
-            <div class="alert alert-success" style="border-left: 4px solid #4CAF50;">
-                <i class="fa fa-info-circle"></i>
-                {{ provider.settings.paybylink_description }}
-            </div>
+        <p class="help-block">{{ provider.settings.paybylink_description }}</p>
+        {% else %}
+        <p>Será redirecionado para uma página de pagamento segura.</p>
         {% endif %}
-        
-        <div class="row" style="margin-top: 20px;">
-            <div class="col-md-6">
-                <div class="security-features" style="background: white; padding: 15px; border-radius: 6px; border: 1px solid #e9ecef; height: 100%;">
-                    <h6 style="color: #495057; margin-bottom: 15px;">
-                        <i class="fa fa-shield" style="margin-right: 5px; color: #4CAF50;"></i>
-                        {% trans "Segurança Garantida" %}
-                    </h6>
-                    <ul style="list-style: none; padding-left: 0; margin-bottom: 0;">
-                        <li style="margin-bottom: 8px;">
-                            <i class="fa fa-check-circle" style="color: #4CAF50; margin-right: 8px;"></i>
-                            {% trans "Encriptação SSL 256-bit" %}
-                        </li>
-                        <li style="margin-bottom: 8px;">
-                            <i class="fa fa-check-circle" style="color: #4CAF50; margin-right: 8px;"></i>
-                            {% trans "Processamento seguro" %}
-                        </li>
-                        <li style="margin-bottom: 8px;">
-                            <i class="fa fa-check-circle" style="color: #4CAF50; margin-right: 8px;"></i>
-                            {% trans "Certificação PCI DSS" %}
-                        </li>
-                        <li>
-                            <i class="fa fa-check-circle" style="color: #4CAF50; margin-right: 8px;"></i>
-                            {% trans "Dados protegidos" %}
-                        </li>
-                    </ul>
-                </div>
-            </div>
-            <div class="col-md-6">
-                <div class="payment-methods" style="background: white; padding: 15px; border-radius: 6px; border: 1px solid #e9ecef; height: 100%;">
-                    <h6 style="color: #495057; margin-bottom: 15px;">
-                        <i class="fa fa-credit-card" style="margin-right: 5px; color: #4CAF50;"></i>
-                        {% trans "Métodos Disponíveis" %}
-                    </h6>
-                    <div class="methods-grid" style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px; text-align: center;">
-                        <div class="method-item" style="padding: 8px; border: 1px solid #e9ecef; border-radius: 4px;">
-                            <i class="fa fa-cc-visa" style="font-size: 20px; color: #1a1f71; margin-bottom: 5px;"></i>
-                            <br><small>Visa</small>
-                        </div>
-                        <div class="method-item" style="padding: 8px; border: 1px solid #e9ecef; border-radius: 4px;">
-                            <i class="fa fa-cc-mastercard" style="font-size: 20px; color: #eb001b; margin-bottom: 5px;"></i>
-                            <br><small>Mastercard</small>
-                        </div>
-                        <div class="method-item" style="padding: 8px; border: 1px solid #e9ecef; border-radius: 4px;">
-                            <i class="fa fa-mobile" style="font-size: 20px; color: #ff6b35; margin-bottom: 5px;"></i>
-                            <br><small>MB WAY</small>
-                        </div>
-                        <div class="method-item" style="padding: 8px; border: 1px solid #e9ecef; border-radius: 4px;">
-                            <i class="fa fa-university" style="font-size: 20px; color: #1e88e5; margin-bottom: 5px;"></i>
-                            <br><small>Multibanco</small>
-                        </div>
-                    </div>
-                </div>
-            </div>
-        </div>
-        
-        <div class="alert alert-info" style="margin-top: 20px; border-left: 4px solid #17a2b8;">
-            <i class="fa fa-lightbulb-o"></i>
-            <strong>{% trans "Dica:" %}</strong>
-            {% trans "Na próxima página poderá escolher entre cartão de crédito, MB WAY, Multibanco ou PayShop para completar o seu pagamento de forma rápida e segura." %}
-        </div>
     </div>
 </div>
 

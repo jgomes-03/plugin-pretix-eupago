@@ -11,27 +11,9 @@
     <div class="panel-body">
         {% if provider.settings.paybylink_description %}
         <p class="help-block">{{ provider.settings.paybylink_description }}</p>
+        {% else %}
+        <p>Será redirecionado para uma página de pagamento segura.</p>
         {% endif %}
-        
-        <div class="row">
-            <div class="col-md-6">
-                <h5>{% trans "Security Features" %}</h5>
-                <ul class="fa-ul">
-                    <li><i class="fa-li fa fa-shield text-success"></i>{% trans "256-bit SSL encryption" %}</li>
-                    <li><i class="fa-li fa fa-lock text-success"></i>{% trans "Secure payment processing" %}</li>
-                    <li><i class="fa-li fa fa-check text-success"></i>{% trans "PCI DSS compliant" %}</li>
-                </ul>
-            </div>
-            <div class="col-md-6">
-                <h5>{% trans "Accepted Payment Methods" %}</h5>
-                <div class="accepted-methods">
-                    <i class="fa fa-cc-visa fa-2x text-primary"></i>
-                    <i class="fa fa-cc-mastercard fa-2x text-warning"></i>
-                    <i class="fa fa-credit-card fa-2x text-info"></i>
-                    <i class="fa fa-money fa-2x text-success"></i>
-                </div>
-            </div>
-        </div>
     </div>
 </div>
 
