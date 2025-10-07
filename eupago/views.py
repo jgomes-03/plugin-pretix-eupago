@@ -90,16 +90,22 @@ class EuPagoReturnView(View):
             if self.payment.state not in [OrderPayment.PAYMENT_STATE_FAILED, OrderPayment.PAYMENT_STATE_CANCELED]:
                 try:
                     logger.info(f'Marking payment {self.payment.full_id} as failed based on fail URL')
-                    self.payment.fail(info={'reason': 'User returned from fail URL'})
+                    # Store failure information from query parameters if available
+                    failure_info = {
+                        'reason': 'User returned from fail URL',
+                        'timestamp': timezone.now().isoformat(),
+                        'query_params': request.GET.dict()
+                    }
+                    self.payment.fail(info=failure_info)
                 except Exception as e:
-                    logger.error(f'Error marking payment {self.payment.full_id} as failed: {e}')
+                    logger.error(f'Error marking payment {self.payment.full_id} as failed: {e}', exc_info=True)
             
             messages.error(request, _('Your payment was not completed. Please try again or choose a different payment method.'))
             
-            # Redirect to retry payment
+            # Redirect to order page where user can retry payment
             return redirect(eventreverse(
                 self.order.event, 
-                'presale:event.order.pay', 
+                'presale:event.order', 
                 kwargs={
                     'order': self.order.code,
                     'secret': self.order.secret
@@ -154,10 +160,10 @@ class EuPagoReturnView(View):
             else:
                 messages.error(request, _('Payment failed. Please try again.'))
                 
-                # Redirect to retry payment
+                # Redirect to order page where user can retry payment
                 return redirect(eventreverse(
                     self.order.event, 
-                    'presale:event.order.pay', 
+                    'presale:event.order', 
                     kwargs={
                         'order': self.order.code,
                         'secret': self.order.secret
