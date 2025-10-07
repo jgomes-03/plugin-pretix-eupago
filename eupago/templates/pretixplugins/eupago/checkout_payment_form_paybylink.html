@@ -5,25 +5,13 @@
     <div class="panel-heading">
         <h4 class="panel-title">
             <i class="fa fa-link"></i>
-            {% trans "PayByLink" %}
-            <small class="text-muted">{% trans "Powered by EuPago" %}</small>
+            {% trans "Powered by EuPago" %}
         </h4>
     </div>
     <div class="panel-body">
         {% if provider.settings.paybylink_description %}
         <p class="help-block">{{ provider.settings.paybylink_description }}</p>
         {% endif %}
-        
-        <div class="alert alert-info">
-            <i class="fa fa-info-circle"></i>
-            <strong>{% trans "Easy Payment Process:" %}</strong>
-            <ol style="margin-bottom: 0; margin-top: 10px;">
-                <li>{% trans "Click 'Continue' to proceed to payment" %}</li>
-                <li>{% trans "You will be redirected to the payment page" %}</li>  
-                <li>{% trans "Select your preferred payment method" %}</li>
-                <li>{% trans "Complete payment and return to receive your tickets" %}</li>
-            </ol>
-        </div>
         
         <div class="row">
             <div class="col-md-6">
