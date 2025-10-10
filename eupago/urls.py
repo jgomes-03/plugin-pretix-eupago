@@ -49,6 +49,6 @@ urlpatterns = [
     path('mbway_wait/<slug:order>/<str:hash>/<int:payment>/', EuPagoMBWayWaitView.as_view(), name='mbway_wait'),
     path('settings/<slug:organizer>/', EuPagoSettingsView.as_view(), name='settings'),
     
-    # Debug endpoint - REMOVE IN PRODUCTION!
-    path('debug_webhook_secret/', debug_webhook_secret, name='debug_webhook_secret'),
+    # Debug endpoint - disabled in production, enable only for troubleshooting
+    # path('debug_webhook_secret/', debug_webhook_secret, name='debug_webhook_secret'),
 ]

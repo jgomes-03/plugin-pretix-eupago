@@ -159,8 +159,8 @@ class EuPagoBaseProvider(BasePaymentProvider):
         # Add authentication based on payment method
         if payment_method and AUTH_METHODS.get(payment_method) == 'header':
             if api_key:
-                # EuPago API expects the API key directly in Authorization header
-                # Format: Authorization: xxxx-xxxx-xxxx-xxxx-xxxx
+                # EuPago PayByLink API expects: Authorization: ApiKey xxxx-xxxx-xxxx-xxxx-xxxx
+                # (with "ApiKey " prefix and space)
                 headers['Authorization'] = f'ApiKey {api_key}'
                 logger.info(f'EuPagoBaseProvider: Adding API key to Authorization header for {payment_method}')
             else:
@@ -795,8 +795,8 @@ class EuPagoMBCreditCard(EuPagoBaseProvider):
         logger.debug(f'EuPagoMBCreditCard._get_headers: api_key={"[CONFIGURED]" if api_key else "[NOT CONFIGURED]"}, payment_method={payment_method}')
         
         if api_key:
-            # EuPago PayByLink expects just the API key in Authorization header
-            headers['Authorization'] = api_key
+            # EuPago PayByLink expects: Authorization: ApiKey xxxx-xxxx-xxxx-xxxx-xxxx
+            headers['Authorization'] = f'ApiKey {api_key}'
             logger.info(f'EuPagoMBCreditCard: Adding MB/CC specific API key to Authorization header')
         else:
             logger.error(f'EuPagoMBCreditCard: No MB/CC API key configured')
@@ -1184,8 +1184,8 @@ class EuPagoMBWayNew(EuPagoBaseProvider):
         logger.debug(f'EuPagoMBWayNew._get_headers: api_key={"[CONFIGURED]" if api_key else "[NOT CONFIGURED]"}, payment_method={payment_method}')
         
         if api_key:
-            # EuPago PayByLink expects just the API key in Authorization header
-            headers['Authorization'] = api_key
+            # EuPago PayByLink expects: Authorization: ApiKey xxxx-xxxx-xxxx-xxxx-xxxx
+            headers['Authorization'] = f'ApiKey {api_key}'
             logger.info(f'EuPagoMBWayNew: Adding MBWay specific API key to Authorization header')
         else:
             logger.error(f'EuPagoMBWayNew: No MBWay API key configured')
