@@ -1254,10 +1254,10 @@ def _decrypt_webhook_data(encrypted_data, iv=None, webhook_secret=None):
         # Start with the hash method which is more common for AES-256
         key = key_from_hash
         
-        # Log key information for debugging (without exposing the actual key)
-        logger.info(f"Decryption key derived from webhook secret (SHA-256): {hashlib.sha256(webhook_secret.encode('utf-8')).hexdigest()[:6]}...")
-        logger.info(f"IV length: {len(iv_bytes)} bytes, first bytes: {iv_bytes[:4].hex()}")
+        # Log information for debugging (without exposing the actual key)
+        logger.info(f"IV length: {len(iv_bytes)} bytes")
         logger.info(f"Encrypted data length: {len(encrypted_data_bytes)} bytes")
+        logger.info(f"Webhook secret length: {len(webhook_secret)} chars, key length: {len(key)} bytes")
         
         try:
             # Decrypt the data using AES-256-CBC
@@ -1265,94 +1265,41 @@ def _decrypt_webhook_data(encrypted_data, iv=None, webhook_secret=None):
             decrypted_padded = cipher.decrypt(encrypted_data_bytes)
             
             # According to EuPago documentation, they use OPENSSL_RAW_DATA in PHP
-            # which means no padding handling is done by the library itself.
-            # We'll try multiple approaches to handle the padding correctly.
+            # which means the padding needs to be removed manually
+            # PHP openssl_decrypt automatically removes PKCS7 padding, so we need to do the same
             
             try:
-                # First, try with automatic PKCS7 unpadding (most common)
+                # Try with automatic PKCS7 unpadding (standard for AES)
                 decrypted = unpad(decrypted_padded, AES.block_size)
                 logger.info("Successfully decrypted with PKCS7 unpadding")
             except ValueError as e:
-                logger.warning(f"PKCS7 unpadding failed: {e}, trying alternatives")
-                
-                # Alternative 1: Try to use the data as is (no padding)
-                # This is equivalent to OPENSSL_RAW_DATA in PHP
+                # PKCS7 unpadding failed - data might not be properly padded
+                logger.warning(f"PKCS7 unpadding failed: {e}, using raw data")
                 decrypted = decrypted_padded
-                logger.info("Using raw decrypted data without unpadding (OPENSSL_RAW_DATA equivalent)")
                 
-                # Try to clean potential NUL bytes at the end (common in some implementations)
-                # Only do this if we suspect JSON data (which won't have trailing NUL bytes)
+                # Clean potential trailing NUL bytes (common when data length is block-aligned)
                 if decrypted.endswith(b'\x00'):
-                    # Strip trailing NUL bytes
-                    stripped = decrypted.rstrip(b'\x00')
-                    # Only use stripped version if it looks like it might be valid JSON
-                    if stripped and (stripped[0:1] == b'{' or stripped[0:1] == b'['):
-                        decrypted = stripped
-                        logger.info("Stripped trailing NUL bytes from decrypted data")
+                    decrypted = decrypted.rstrip(b'\x00')
+                    logger.info("Stripped trailing NUL bytes from decrypted data")
             
             # Try to decode the decrypted data as UTF-8
             try:
                 decrypted_string = decrypted.decode('utf-8')
-                # Check if it looks like valid JSON
-                if decrypted_string.strip().startswith('{') and decrypted_string.strip().endswith('}'):
-                    logger.info("Decryption successful - result looks like valid JSON")
+                
+                # Validate it looks like JSON
+                decrypted_trimmed = decrypted_string.strip()
+                if decrypted_trimmed.startswith('{') or decrypted_trimmed.startswith('['):
+                    logger.info("Decryption successful - result is valid JSON")
                     return decrypted_string
                 else:
-                    logger.warning("Decryption result doesn't look like valid JSON - possible decryption failure")
-            except UnicodeDecodeError:
-                # If UTF-8 decoding fails, it might be a binary payload or wrong key
-                logger.warning("Decrypted data is not valid UTF-8 with key method 1 - trying key method 2")
-            
-            # If we're here, the first key method failed - try with the direct key method
-            if key == key_from_hash:
-                logger.info("Trying decryption with direct key method")
-                key = key_direct
-                
-                try:
-                    # Try again with the direct key
-                    cipher = AES.new(key, AES.MODE_CBC, iv_bytes)
-                    decrypted_padded = cipher.decrypt(encrypted_data_bytes)
+                    logger.error(f"Decryption result doesn't look like JSON. First 50 chars: {decrypted_string[:50]}")
+                    return None
                     
-                    # Try with and without padding
-                    try:
-                        decrypted = unpad(decrypted_padded, AES.block_size)
-                    except ValueError:
-                        decrypted = decrypted_padded
-                        
-                    # Try to decode
-                    decrypted_string = decrypted.decode('utf-8')
-                    if decrypted_string.strip().startswith('{') and decrypted_string.strip().endswith('}'):
-                        logger.info("Decryption successful with direct key method - result is valid JSON")
-                        return decrypted_string
-                    else:
-                        logger.warning("Decryption result with direct key doesn't look like valid JSON")
-                except Exception as e:
-                    logger.error(f"Decryption with direct key method failed: {e}")
-                    
-            # If both methods failed, try one more approach - use the base64-encoded IV as the key
-            # (some implementations make this mistake)
-            try:
-                logger.info("Trying decryption with IV as key (last resort)")
-                key = iv_bytes
-                cipher = AES.new(key, AES.MODE_CBC, iv_bytes)
-                decrypted_padded = cipher.decrypt(encrypted_data_bytes)
-                
-                try:
-                    decrypted = unpad(decrypted_padded, AES.block_size)
-                except ValueError:
-                    decrypted = decrypted_padded
-                    
-                decrypted_string = decrypted.decode('utf-8')
-                if decrypted_string.strip().startswith('{') and decrypted_string.strip().endswith('}'):
-                    logger.info("Decryption successful with IV as key - result is valid JSON")
-                    return decrypted_string
-            except Exception:
-                # If this fails too, we're out of options
-                pass
-                
-            # If we get here, all decryption attempts failed
-            logger.error("All decryption methods failed")
-            return None
+            except UnicodeDecodeError as e:
+                logger.error(f"Failed to decode decrypted data as UTF-8: {e}")
+                # Log first few bytes as hex for debugging
+                logger.error(f"First 16 bytes of decrypted data (hex): {decrypted[:16].hex()}")
+                return None
                 
         except Exception as e:
             logger.error(f"Error during AES decryption process: {e}")
@@ -1463,234 +1410,3 @@ def debug_webhook_secret(request, *args, **kwargs):
         json.dumps(response_data, indent=2),
         content_type='application/json'
     )
-
-
-def _decrypt_webhook_data(encrypted_data, iv=None, webhook_secret=None):
-    """Decrypt encrypted webhook data using AES-256-CBC
-    
-    Args:
-        encrypted_data (str): Base64 encoded encrypted data
-        iv (str, optional): Base64 encoded initialization vector from X-Initialization-Vector header
-        webhook_secret (str, optional): Webhook secret from plugin settings
-        
-    Returns:
-        str: Decrypted data as a string, or None if decryption fails
-    """
-    try:
-        import base64
-        import hashlib
-        from Crypto.Cipher import AES
-        from Crypto.Util.Padding import unpad
-        
-        # If IV is not provided directly, try to get it from the current request
-        if not iv:
-            logger.error('Missing initialization vector for decryption')
-            return None
-            
-        iv_bytes = base64.b64decode(iv)
-        
-        # Get webhook secret from settings if not provided
-        if not webhook_secret:
-            try:
-                # First try to get from organizer settings
-                from django_scopes import scopes_disabled
-                
-                with scopes_disabled():
-                    # Get all organizers that might have this setting
-                    organizers = Organizer.objects.all()
-                    for organizer in organizers:
-                        try:
-                            # Check if this organizer has the webhook secret configured
-                            logger.info(f"Checking organizer '{organizer.slug}' for webhook secret")
-                            
-                            # Try all possible setting key variations
-                            settings_to_check = [
-                                'payment_eupago_webhook_secret',  # Standard with payment_ prefix
-                                'eupago_webhook_secret',          # Without payment_ prefix
-                                'webhook_secret',                 # Simple key name
-                                'payment_webhook_secret'          # Another possible variation
-                            ]
-                            
-                            for setting_key in settings_to_check:
-                                potential_secret = organizer.settings.get(setting_key, '')
-                                if potential_secret:
-                                    webhook_secret = potential_secret
-                                    logger.info(f"Found webhook secret in organizer '{organizer.slug}' settings using key '{setting_key}'")
-                                    
-                                    # Log partial secret for debugging (first 3 chars only)
-                                    if len(potential_secret) > 5:
-                                        logger.info(f"Secret starts with: {potential_secret[:3]}...")
-                                    else:
-                                        logger.info("Secret is too short, might be invalid")
-                                    break
-                            
-                            if webhook_secret:
-                                break
-                        except Exception as e:
-                            logger.debug(f"Error accessing settings for organizer {organizer.slug}: {e}")
-            except Exception as e:
-                logger.warning(f"Error accessing organizer settings: {e}")
-                
-            # If not found in organizer settings, try environment variable
-            if not webhook_secret:
-                webhook_secret = os.environ.get('EUPAGO_WEBHOOK_SECRET', '')
-                if webhook_secret:
-                    logger.info("Using webhook secret from environment variable")
-                
-                # If no environment variable, try to read from a local file
-                if not webhook_secret:
-                    try:
-                        secret_file = os.path.join(os.path.dirname(__file__), 'webhook_secret.txt')
-                        if os.path.exists(secret_file):
-                            with open(secret_file, 'r') as f:
-                                webhook_secret = f.read().strip()
-                                logger.info("Using webhook secret from webhook_secret.txt file")
-                    except Exception as e:
-                        logger.debug(f"Could not read webhook secret file: {e}")
-        
-        if not webhook_secret:
-            logger.error('Webhook secret not configured - please configure payment_eupago_webhook_secret in organizer settings or set EUPAGO_WEBHOOK_SECRET environment variable')
-            return None
-        
-        # According to EuPago documentation, there are two possible key derivation methods:
-        
-        # Option 1: Using SHA-256 to derive a 256-bit key (32 bytes) from the webhook secret
-        key_from_hash = hashlib.sha256(webhook_secret.encode('utf-8')).digest()
-        
-        # Option 2: Using the webhook secret directly as the key
-        # For AES-256-CBC, we need exactly 32 bytes
-        key_direct = webhook_secret.encode('utf-8')
-        if len(key_direct) < 32:
-            # If key is too short, pad it to 32 bytes using zero padding
-            key_direct = key_direct.ljust(32, b'\0')
-        elif len(key_direct) > 32:
-            # If key is too long, truncate or hash it
-            key_direct = key_direct[:32]
-            
-        # Log key methods for debugging
-        logger.info(f"Key method 1 (SHA-256): First 4 bytes: {key_from_hash[:4].hex()}")
-        logger.info(f"Key method 2 (Direct): First 4 bytes: {key_direct[:4].hex()}")
-            
-        # Base64 decode the encrypted data
-        encrypted_data_bytes = base64.b64decode(encrypted_data)
-        
-        # We'll try both key methods to see which one works
-        # Start with the hash method which is more common for AES-256
-        key = key_from_hash
-        
-        # Log key information for debugging (without exposing the actual key)
-        logger.info(f"Decryption key derived from webhook secret (SHA-256): {hashlib.sha256(webhook_secret.encode('utf-8')).hexdigest()[:6]}...")
-        logger.info(f"IV length: {len(iv_bytes)} bytes, first bytes: {iv_bytes[:4].hex()}")
-        logger.info(f"Encrypted data length: {len(encrypted_data_bytes)} bytes")
-        
-        try:
-            # Decrypt the data using AES-256-CBC
-            cipher = AES.new(key, AES.MODE_CBC, iv_bytes)
-            decrypted_padded = cipher.decrypt(encrypted_data_bytes)
-            
-            # According to EuPago documentation, they use OPENSSL_RAW_DATA in PHP
-            # which means no padding handling is done by the library itself.
-            # We'll try multiple approaches to handle the padding correctly.
-            
-            try:
-                # First, try with automatic PKCS7 unpadding (most common)
-                decrypted = unpad(decrypted_padded, AES.block_size)
-                logger.info("Successfully decrypted with PKCS7 unpadding")
-            except ValueError as e:
-                logger.warning(f"PKCS7 unpadding failed: {e}, trying alternatives")
-                
-                # Alternative 1: Try to use the data as is (no padding)
-                # This is equivalent to OPENSSL_RAW_DATA in PHP
-                decrypted = decrypted_padded
-                logger.info("Using raw decrypted data without unpadding (OPENSSL_RAW_DATA equivalent)")
-                
-                # Try to clean potential NUL bytes at the end (common in some implementations)
-                # Only do this if we suspect JSON data (which won't have trailing NUL bytes)
-                if decrypted.endswith(b'\x00'):
-                    # Strip trailing NUL bytes
-                    stripped = decrypted.rstrip(b'\x00')
-                    # Only use stripped version if it looks like it might be valid JSON
-                    if stripped and (stripped[0:1] == b'{' or stripped[0:1] == b'['):
-                        decrypted = stripped
-                        logger.info("Stripped trailing NUL bytes from decrypted data")
-            
-            # Try to decode the decrypted data as UTF-8
-            try:
-                decrypted_string = decrypted.decode('utf-8')
-                # Check if it looks like valid JSON
-                if decrypted_string.strip().startswith('{') and decrypted_string.strip().endswith('}'):
-                    logger.info("Decryption successful - result is valid JSON")
-                    return decrypted_string
-                else:
-                    logger.info("Decryption successful but result doesn't look like JSON")
-                    return decrypted_string
-            except UnicodeDecodeError as e:
-                logger.warning(f"Failed to decode as UTF-8: {e}")
-                
-        except Exception as e:
-            logger.warning(f"Decryption failed with SHA-256 key: {e}")
-        
-        # If first method fails, try with direct key
-        logger.info("Retrying decryption with direct key method")
-        key = key_direct
-        
-        try:
-            # Try again with the direct key
-            cipher = AES.new(key, AES.MODE_CBC, iv_bytes)
-            decrypted_padded = cipher.decrypt(encrypted_data_bytes)
-            
-            # Try with and without padding
-            try:
-                decrypted = unpad(decrypted_padded, AES.block_size)
-            except ValueError:
-                decrypted = decrypted_padded
-                
-            # Try to decode and validate
-            try:
-                decrypted_string = decrypted.decode('utf-8')
-                # Validate if it looks like JSON
-                if decrypted_string.strip().startswith('{') and decrypted_string.strip().endswith('}'):
-                    logger.info("Decryption successful with direct key - result is valid JSON")
-                    return decrypted_string
-            except Exception:
-                # If this fails too, try using the IV as the key (some implementations vary)
-                pass
-                
-            # Last resort: try using IV as key
-            logger.info("Trying alternative decryption with IV as key")
-            
-            try:
-                # Use IV as key (pad if necessary)
-                iv_as_key = iv_bytes
-                if len(iv_as_key) < 32:
-                    iv_as_key = iv_as_key.ljust(32, b'\0')
-                elif len(iv_as_key) > 32:
-                    iv_as_key = iv_as_key[:32]
-                    
-                cipher = AES.new(iv_as_key, AES.MODE_CBC, iv_bytes)
-                decrypted_padded = cipher.decrypt(encrypted_data_bytes)
-                
-                try:
-                    decrypted = unpad(decrypted_padded, AES.block_size)
-                except ValueError:
-                    decrypted = decrypted_padded
-                    
-                decrypted_string = decrypted.decode('utf-8')
-                if decrypted_string.strip().startswith('{') and decrypted_string.strip().endswith('}'):
-                    logger.info("Decryption successful with IV as key - result is valid JSON")
-                    return decrypted_string
-            except Exception:
-                # If this fails too, we're out of options
-                pass
-                
-            # If we get here, all decryption attempts failed
-            logger.error("All decryption methods failed")
-            return None
-                
-        except Exception as e:
-            logger.error(f"Error during AES decryption process: {e}")
-            return None
-    
-    except Exception as e:
-        logger.error(f'Error decrypting webhook data: {e}', exc_info=True)
-        return None
