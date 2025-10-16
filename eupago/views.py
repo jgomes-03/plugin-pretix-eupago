@@ -1073,96 +1073,9 @@ def _decrypt_webhook_data(encrypted_data, iv=None, webhook_secret=None):
         str: Decrypted data as a string, or None if decryption fails
     """
     try:
-        # Validate inputs
-        if not encrypted_data:
-            logger.error('No encrypted data provided for decryption')
-            return None
-            
-        if not iv:
-            logger.error('Missing initialization vector (IV) for decryption')
-            return None
-            
-        if not webhook_secret:
-            logger.error('Missing webhook secret (encryption key) for decryption')
-            return None
-        
-        logger.info(f'Starting decryption process...')
-        logger.info(f'Encrypted data length: {len(encrypted_data)} chars')
-        logger.info(f'IV length: {len(iv)} chars')
-        logger.info(f'Webhook secret length: {len(webhook_secret)} chars')
-        
-        # Step 1: Base64 decode the encrypted data (as per PHP: base64_decode($encryptedData))
-        try:
-            encrypted_bytes = base64.b64decode(encrypted_data)
-            logger.info(f'Decoded encrypted data: {len(encrypted_bytes)} bytes')
-        except Exception as e:
-            logger.error(f'Failed to base64 decode encrypted data: {e}')
-            return None
-            
-        # Step 2: Base64 decode the IV (as per PHP: base64_decode($iv))
-        try:
-            iv_bytes = base64.b64decode(iv)
-            logger.info(f'Decoded IV: {len(iv_bytes)} bytes')
-            if len(iv_bytes) != 16:
-                logger.warning(f'IV length is {len(iv_bytes)}, expected 16 bytes for AES')
-        except Exception as e:
-            logger.error(f'Failed to base64 decode IV: {e}')
-            return None
-            
-        # Step 3: Prepare the encryption key
-        # The webhook secret is used directly as the encryption key
-        key = webhook_secret.encode('utf-8')
-        
-        # For AES-256-CBC, we need exactly 32 bytes
-        if len(key) < 32:
-            # Pad with zeros if too short
-            key = key.ljust(32, b'\0')
-            logger.info(f'Padded key to 32 bytes (was {len(webhook_secret)} chars)')
-        elif len(key) > 32:
-            # Truncate if too long  
-            key = key[:32]
-            logger.info(f'Truncated key to 32 bytes (was {len(webhook_secret)} chars)')
-        else:
-            logger.info(f'Key is exactly 32 bytes')
-            
-        # Step 4: Decrypt using AES-256-CBC (matching PHP openssl_decrypt with OPENSSL_RAW_DATA)
-        try:
-            # Use pycrypto AES which is already imported
-            cipher = AES.new(key, AES.MODE_CBC, iv_bytes)
-            decrypted_padded = cipher.decrypt(encrypted_bytes)
-            
-            # Step 5: Remove PKCS7 padding (PHP openssl_decrypt does this automatically)
-            try:
-                decrypted_bytes = unpad(decrypted_padded, AES.block_size)
-            except Exception as padding_error:
-                logger.warning(f'PKCS7 unpadding failed: {padding_error}. Using raw decrypted data.')
-                # Sometimes the data doesn't use standard padding, try manual cleanup
-                decrypted_bytes = decrypted_padded.rstrip(b'\x00\x01\x02\x03\x04\x05\x06\x07\x08\x09\x0a\x0b\x0c\x0d\x0e\x0f')
-            
-            # Step 6: Convert to string (PHP automatically converts to string)
-            try:
-                decrypted_string = decrypted_bytes.decode('utf-8')
-                logger.info('Decryption successful - data decoded as UTF-8')
-                
-                # Validate the result looks like JSON
-                if decrypted_string.strip().startswith('{') or decrypted_string.strip().startswith('['):
-                    logger.info('Decrypted data appears to be valid JSON')
-                    return decrypted_string
-                else:
-                    logger.warning('Decrypted data does not appear to be JSON - might be invalid key/IV')
-                    return decrypted_string  # Return anyway, let caller validate
-                    
-            except UnicodeDecodeError as e:
-                logger.error(f'Failed to decode decrypted bytes as UTF-8: {e}')
-                return None
-                
-        except Exception as e:
-            logger.error(f'AES decryption failed: {e}')
-            return None
-    
-    except Exception as e:
-        logger.error(f'Error in webhook decryption: {e}', exc_info=True)
-        return None
+        import base64
+        from Crypto.Cipher import AES
+        from Crypto.Util.Padding import unpad
         
         # Get webhook secret from settings if not provided
         if not webhook_secret:
@@ -1224,89 +1137,162 @@ def _decrypt_webhook_data(encrypted_data, iv=None, webhook_secret=None):
                     except Exception as e:
                         logger.debug(f"Could not read webhook secret file: {e}")
         
+        # Validate inputs
+        if not encrypted_data:
+            logger.error('No encrypted data provided for decryption')
+            return None
+            
+        if not iv:
+            logger.error('Missing initialization vector (IV) for decryption')
+            return None
+            
         if not webhook_secret:
             logger.error('Webhook secret not configured - please configure payment_eupago_webhook_secret in organizer settings or set EUPAGO_WEBHOOK_SECRET environment variable')
             return None
         
-        # According to EuPago documentation, there are two possible key derivation methods:
+        logger.info(f'Starting decryption process...')
+        logger.info(f'Encrypted data length: {len(encrypted_data)} chars')
+        logger.info(f'IV length: {len(iv)} chars')
+        logger.info(f'Webhook secret length: {len(webhook_secret)} chars')
         
-        # Option 1: Using SHA-256 to derive a 256-bit key (32 bytes) from the webhook secret
-        key_from_hash = hashlib.sha256(webhook_secret.encode('utf-8')).digest()
-        
-        # Option 2: Using the webhook secret directly as the key
-        # For AES-256-CBC, we need exactly 32 bytes
-        key_direct = webhook_secret.encode('utf-8')
-        if len(key_direct) < 32:
-            # If key is too short, pad it to 32 bytes using zero padding
-            key_direct = key_direct.ljust(32, b'\0')
-        elif len(key_direct) > 32:
-            # If key is too long, truncate or hash it
-            key_direct = key_direct[:32]
-            
-        # Log key methods for debugging
-        logger.info(f"Key method 1 (SHA-256): First 4 bytes: {key_from_hash[:4].hex()}")
-        logger.info(f"Key method 2 (Direct): First 4 bytes: {key_direct[:4].hex()}")
-            
-        # Base64 decode the encrypted data
-        encrypted_data_bytes = base64.b64decode(encrypted_data)
-        
-        # We'll try both key methods to see which one works
-        # Start with the hash method which is more common for AES-256
-        key = key_from_hash
-        
-        # Log information for debugging (without exposing the actual key)
-        logger.info(f"IV length: {len(iv_bytes)} bytes")
-        logger.info(f"Encrypted data length: {len(encrypted_data_bytes)} bytes")
-        logger.info(f"Webhook secret length: {len(webhook_secret)} chars, key length: {len(key)} bytes")
-        
+        # Step 1: Base64 decode the encrypted data (as per PHP: base64_decode($encryptedData))
         try:
-            # Decrypt the data using AES-256-CBC
+            encrypted_bytes = base64.b64decode(encrypted_data)
+            logger.info(f'Decoded encrypted data: {len(encrypted_bytes)} bytes')
+        except Exception as e:
+            logger.error(f'Failed to base64 decode encrypted data: {e}')
+            return None
+            
+        # Step 2: Base64 decode the IV (as per PHP: base64_decode($iv))
+        try:
+            iv_bytes = base64.b64decode(iv)
+            logger.info(f'Decoded IV: {len(iv_bytes)} bytes')
+            if len(iv_bytes) != 16:
+                logger.warning(f'IV length is {len(iv_bytes)}, expected 16 bytes for AES')
+        except Exception as e:
+            logger.error(f'Failed to base64 decode IV: {e}')
+            return None
+            
+        # Step 3: Prepare the encryption key
+        # According to EuPago documentation and PHP example:
+        # The webhook secret is used DIRECTLY as the encryption key (no SHA-256 hash)
+        
+        # First, let's clean the webhook secret of any potential whitespace
+        webhook_secret_clean = webhook_secret.strip()
+        if webhook_secret_clean != webhook_secret:
+            logger.warning(f'Webhook secret had whitespace - cleaned from {len(webhook_secret)} to {len(webhook_secret_clean)} chars')
+            webhook_secret = webhook_secret_clean
+        
+        # Log detailed information about the webhook secret for debugging
+        logger.info(f'Webhook secret: length={len(webhook_secret)}, starts_with="{webhook_secret[:4]}...", ends_with="...{webhook_secret[-4:]}"')
+        
+        key = webhook_secret.encode('utf-8')
+        logger.info(f'Key bytes: length={len(key)}, first_4_bytes={key[:4].hex()}, last_4_bytes={key[-4:].hex()}')
+        
+        # For AES-256-CBC, we need exactly 32 bytes
+        if len(key) < 32:
+            # Pad with zeros if too short
+            key = key.ljust(32, b'\0')
+            logger.info(f'Padded key to 32 bytes (was {len(webhook_secret)} chars)')
+        elif len(key) > 32:
+            # Truncate if too long  
+            key = key[:32]
+            logger.info(f'Truncated key to 32 bytes (was {len(webhook_secret)} chars)')
+        else:
+            logger.info(f'Key is exactly 32 bytes')
+            
+        logger.info(f'Final key: first_4_bytes={key[:4].hex()}, last_4_bytes={key[-4:].hex()}')
+            
+        # Step 4: Decrypt using AES-256-CBC (matching PHP openssl_decrypt with OPENSSL_RAW_DATA)
+        try:
             cipher = AES.new(key, AES.MODE_CBC, iv_bytes)
-            decrypted_padded = cipher.decrypt(encrypted_data_bytes)
+            decrypted_padded = cipher.decrypt(encrypted_bytes)
             
-            # According to EuPago documentation, they use OPENSSL_RAW_DATA in PHP
-            # which means the padding needs to be removed manually
-            # PHP openssl_decrypt automatically removes PKCS7 padding, so we need to do the same
+            # Step 5: Remove PKCS7 padding 
+            # PHP's openssl_decrypt with OPENSSL_RAW_DATA still removes padding automatically
+            # But sometimes the padding format varies, so we'll try multiple approaches
             
+            logger.info(f'Raw decrypted data: length={len(decrypted_padded)}, last_16_bytes={decrypted_padded[-16:].hex()}')
+            
+            # Method 1: Standard PKCS7 unpadding
             try:
-                # Try with automatic PKCS7 unpadding (standard for AES)
-                decrypted = unpad(decrypted_padded, AES.block_size)
-                logger.info("Successfully decrypted with PKCS7 unpadding")
-            except ValueError as e:
-                # PKCS7 unpadding failed - data might not be properly padded
-                logger.warning(f"PKCS7 unpadding failed: {e}, using raw data")
-                decrypted = decrypted_padded
+                decrypted_bytes = unpad(decrypted_padded, AES.block_size)
+                logger.info('Successfully removed PKCS7 padding using standard method')
+            except Exception as padding_error:
+                logger.warning(f'Standard PKCS7 unpadding failed: {padding_error}')
                 
-                # Clean potential trailing NUL bytes (common when data length is block-aligned)
-                if decrypted.endswith(b'\x00'):
-                    decrypted = decrypted.rstrip(b'\x00')
-                    logger.info("Stripped trailing NUL bytes from decrypted data")
+                # Method 2: Manual PKCS7 unpadding (more robust)
+                try:
+                    # Get the last byte which indicates padding length in PKCS7
+                    padding_length = decrypted_padded[-1]
+                    if isinstance(padding_length, str):
+                        padding_length = ord(padding_length)
+                    
+                    # Validate padding length
+                    if 1 <= padding_length <= 16:
+                        # Check if all padding bytes are the same
+                        padding_bytes = decrypted_padded[-padding_length:]
+                        if all(b == padding_length for b in padding_bytes):
+                            decrypted_bytes = decrypted_padded[:-padding_length]
+                            logger.info(f'Successfully removed PKCS7 padding manually: {padding_length} bytes')
+                        else:
+                            raise ValueError("Padding bytes are not consistent")
+                    else:
+                        raise ValueError(f"Invalid padding length: {padding_length}")
+                        
+                except Exception as manual_padding_error:
+                    logger.warning(f'Manual PKCS7 unpadding failed: {manual_padding_error}')
+                    
+                    # Method 3: Try without any padding removal (raw data)
+                    decrypted_bytes = decrypted_padded
+                    logger.info('Using raw decrypted data without padding removal')
+                    
+                    # Method 4: Try removing common padding patterns
+                    # Remove trailing null bytes (common in some implementations)
+                    while decrypted_bytes and decrypted_bytes[-1] == 0:
+                        decrypted_bytes = decrypted_bytes[:-1]
+                    
+                    # Remove other common padding bytes (1-16)
+                    if decrypted_bytes:
+                        last_byte = decrypted_bytes[-1]
+                        if 1 <= last_byte <= 16:
+                            # Try removing this many bytes if they're all the same
+                            if len(decrypted_bytes) >= last_byte:
+                                padding_candidate = decrypted_bytes[-last_byte:]
+                                if all(b == last_byte for b in padding_candidate):
+                                    decrypted_bytes = decrypted_bytes[:-last_byte]
+                                    logger.info(f'Removed {last_byte} padding bytes using heuristic method')
+                    
+                    logger.info(f'Final cleaned data length: {len(decrypted_bytes)} bytes')
             
-            # Try to decode the decrypted data as UTF-8
+            # Step 6: Convert to string (PHP automatically converts to string)
             try:
-                decrypted_string = decrypted.decode('utf-8')
+                decrypted_string = decrypted_bytes.decode('utf-8')
+                logger.info('Decryption successful - data decoded as UTF-8')
                 
-                # Validate it looks like JSON
-                decrypted_trimmed = decrypted_string.strip()
-                if decrypted_trimmed.startswith('{') or decrypted_trimmed.startswith('['):
-                    logger.info("Decryption successful - result is valid JSON")
+                # Validate the result looks like JSON
+                trimmed = decrypted_string.strip()
+                if trimmed.startswith('{') or trimmed.startswith('['):
+                    logger.info('Decrypted data appears to be valid JSON')
                     return decrypted_string
                 else:
-                    logger.error(f"Decryption result doesn't look like JSON. First 50 chars: {decrypted_string[:50]}")
+                    logger.warning(f'Decrypted data does not appear to be JSON. First 50 chars: {trimmed[:50]}')
+                    logger.error('Decryption failed - invalid data, IV, or webhook secret')
                     return None
                     
             except UnicodeDecodeError as e:
-                logger.error(f"Failed to decode decrypted data as UTF-8: {e}")
+                logger.error(f'Failed to decode decrypted bytes as UTF-8: {e}')
                 # Log first few bytes as hex for debugging
-                logger.error(f"First 16 bytes of decrypted data (hex): {decrypted[:16].hex()}")
+                logger.error(f'First 16 bytes as hex: {decrypted_bytes[:16].hex()}')
+                logger.error('Decryption failed - invalid data, IV, or webhook secret')
                 return None
                 
         except Exception as e:
-            logger.error(f"Error during AES decryption process: {e}")
+            logger.error(f'AES decryption failed: {e}')
             return None
     
     except Exception as e:
-        logger.error(f'Error decrypting webhook data: {e}', exc_info=True)
+        logger.error(f'Error in webhook decryption: {e}', exc_info=True)
         return None
 
 
