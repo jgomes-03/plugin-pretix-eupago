@@ -1204,9 +1204,141 @@ def _decrypt_webhook_data(encrypted_data, iv=None, webhook_secret=None):
         logger.info(f'Final key: first_4_bytes={key[:4].hex()}, last_4_bytes={key[-4:].hex()}')
             
         # Step 4: Decrypt using AES-256-CBC (matching PHP openssl_decrypt with OPENSSL_RAW_DATA)
+        # Let's try multiple key variations to find the correct one
+        
+        key_variations = []
+        
+        # Variation 1: Direct key (current approach)
+        key_variations.append(('direct', key))
+        
+        # Variation 2: Try with different encodings
         try:
-            cipher = AES.new(key, AES.MODE_CBC, iv_bytes)
-            decrypted_padded = cipher.decrypt(encrypted_bytes)
+            key_latin1 = webhook_secret.encode('latin-1')
+            if len(key_latin1) < 32:
+                key_latin1 = key_latin1.ljust(32, b'\0')
+            elif len(key_latin1) > 32:
+                key_latin1 = key_latin1[:32]
+            key_variations.append(('latin-1', key_latin1))
+        except:
+            pass
+        
+        # Variation 3: Try raw bytes if webhook secret looks like hex
+        if len(webhook_secret) == 64 and all(c in '0123456789abcdefABCDEF' for c in webhook_secret):
+            try:
+                key_hex = bytes.fromhex(webhook_secret)
+                if len(key_hex) == 32:
+                    key_variations.append(('hex-decoded', key_hex))
+            except:
+                pass
+        
+        # Variation 4: Try base64 decoding if it looks like base64
+        if len(webhook_secret) > 20 and webhook_secret.replace('+', '').replace('/', '').replace('=', '').isalnum():
+            try:
+                import base64
+                key_b64 = base64.b64decode(webhook_secret)
+                if len(key_b64) <= 32:
+                    if len(key_b64) < 32:
+                        key_b64 = key_b64.ljust(32, b'\0')
+                    key_variations.append(('base64-decoded', key_b64))
+            except:
+                pass
+        
+        # Variation 5: Try SHA-256 hash (some implementations might use this)
+        import hashlib
+        key_sha256 = hashlib.sha256(webhook_secret.encode('utf-8')).digest()
+        key_variations.append(('sha256-hash', key_sha256))
+        
+        logger.info(f'Trying {len(key_variations)} key variations for decryption')
+        
+        decrypted_string = None
+        successful_method = None
+        
+        for method_name, test_key in key_variations:
+            logger.info(f'Attempting decryption with method: {method_name} (key: {test_key[:4].hex()}...{test_key[-4:].hex()})')
+            
+            try:
+                cipher = AES.new(test_key, AES.MODE_CBC, iv_bytes)
+                decrypted_padded = cipher.decrypt(encrypted_bytes)
+                
+                logger.info(f'Method {method_name}: Raw decrypted length={len(decrypted_padded)}, last_16_bytes={decrypted_padded[-16:].hex()}')
+                
+                # Try multiple padding removal approaches
+                padding_methods = []
+                
+                # Method A: Standard PKCS7
+                try:
+                    from Crypto.Util.Padding import unpad
+                    decrypted_A = unpad(decrypted_padded, AES.block_size)
+                    padding_methods.append(('pkcs7', decrypted_A))
+                except:
+                    pass
+                
+                # Method B: Manual PKCS7
+                try:
+                    padding_length = decrypted_padded[-1]
+                    if isinstance(padding_length, str):
+                        padding_length = ord(padding_length)
+                    if 1 <= padding_length <= 16:
+                        padding_bytes = decrypted_padded[-padding_length:]
+                        if all(b == padding_length for b in padding_bytes):
+                            decrypted_B = decrypted_padded[:-padding_length]
+                            padding_methods.append(('manual-pkcs7', decrypted_B))
+                except:
+                    pass
+                
+                # Method C: No padding removal
+                padding_methods.append(('none', decrypted_padded))
+                
+                # Method D: Remove null bytes only
+                decrypted_D = decrypted_padded.rstrip(b'\x00')
+                if decrypted_D != decrypted_padded:
+                    padding_methods.append(('null-strip', decrypted_D))
+                
+                # Test each padding method
+                for pad_method, decrypted_bytes in padding_methods:
+                    try:
+                        test_string = decrypted_bytes.decode('utf-8')
+                        trimmed = test_string.strip()
+                        
+                        logger.info(f'Method {method_name} + {pad_method}: decoded {len(decrypted_bytes)} bytes, first 50 chars: {trimmed[:50]}')
+                        
+                        # Check if it looks like valid JSON
+                        if (trimmed.startswith('{') and trimmed.endswith('}')) or (trimmed.startswith('[') and trimmed.endswith(']')):
+                            try:
+                                import json
+                                json.loads(trimmed)  # Validate JSON
+                                decrypted_string = test_string
+                                successful_method = f'{method_name}+{pad_method}'
+                                logger.info(f'SUCCESS! Decryption successful with method: {successful_method}')
+                                break
+                            except json.JSONDecodeError:
+                                logger.info(f'Method {method_name} + {pad_method}: Not valid JSON')
+                                pass
+                        else:
+                            logger.info(f'Method {method_name} + {pad_method}: Not JSON format')
+                    except UnicodeDecodeError as e:
+                        logger.info(f'Method {method_name} + {pad_method}: UTF-8 decode failed: {e}')
+                    
+                if decrypted_string:
+                    break
+                    
+            except Exception as e:
+                logger.info(f'Method {method_name}: Decryption failed: {e}')
+        
+        if decrypted_string:
+            logger.info(f'Decryption successful using method: {successful_method}')
+            return decrypted_string
+        else:
+            # Log detailed failure information
+            logger.error('All decryption methods failed!')
+            logger.error(f'Webhook secret (first 8/last 8 chars): {webhook_secret[:8]}...{webhook_secret[-8:]}')
+            logger.error(f'IV (hex): {iv_bytes.hex()}')
+            logger.error(f'Encrypted data (first 32 bytes hex): {encrypted_bytes[:32].hex()}')
+            logger.error('Please verify:')
+            logger.error('1. Webhook secret matches exactly what is configured in EuPago backoffice')
+            logger.error('2. Check if you are using sandbox vs live environment settings')
+            logger.error('3. Verify the webhook encryption key in EuPago backoffice settings')
+            return None
             
             # Step 5: Remove PKCS7 padding 
             # PHP's openssl_decrypt with OPENSSL_RAW_DATA still removes padding automatically
@@ -1265,31 +1397,7 @@ def _decrypt_webhook_data(encrypted_data, iv=None, webhook_secret=None):
                     
                     logger.info(f'Final cleaned data length: {len(decrypted_bytes)} bytes')
             
-            # Step 6: Convert to string (PHP automatically converts to string)
-            try:
-                decrypted_string = decrypted_bytes.decode('utf-8')
-                logger.info('Decryption successful - data decoded as UTF-8')
-                
-                # Validate the result looks like JSON
-                trimmed = decrypted_string.strip()
-                if trimmed.startswith('{') or trimmed.startswith('['):
-                    logger.info('Decrypted data appears to be valid JSON')
-                    return decrypted_string
-                else:
-                    logger.warning(f'Decrypted data does not appear to be JSON. First 50 chars: {trimmed[:50]}')
-                    logger.error('Decryption failed - invalid data, IV, or webhook secret')
-                    return None
-                    
-            except UnicodeDecodeError as e:
-                logger.error(f'Failed to decode decrypted bytes as UTF-8: {e}')
-                # Log first few bytes as hex for debugging
-                logger.error(f'First 16 bytes as hex: {decrypted_bytes[:16].hex()}')
-                logger.error('Decryption failed - invalid data, IV, or webhook secret')
-                return None
-                
-        except Exception as e:
-            logger.error(f'AES decryption failed: {e}')
-            return None
+
     
     except Exception as e:
         logger.error(f'Error in webhook decryption: {e}', exc_info=True)
