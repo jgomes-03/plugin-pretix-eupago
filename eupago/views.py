@@ -781,34 +781,34 @@ def _handle_payment_pending(payment: OrderPayment, data: dict):
 class EuPagoSettingsForm(SettingsForm):
     """Form for EuPago global settings"""
     
-    eupago_api_key = SecretKeySettingsField(
+    payment_eupago_api_key = SecretKeySettingsField(
         label=_('API Key'),
         help_text=_('Your EuPago API key'),
         required=False,
     )
-    eupago_client_id = forms.CharField(
+    payment_eupago_client_id = forms.CharField(
         label=_('Client ID'),
         help_text=_('Your EuPago Client ID'),
         required=False,
         widget=forms.TextInput(attrs={'placeholder': 'Client ID', 'class': 'form-control'})
     )
-    eupago_client_secret = SecretKeySettingsField(
+    payment_eupago_client_secret = SecretKeySettingsField(
         label=_('Client Secret'),
         help_text=_('Your EuPago Client Secret'),
         required=False,
     )
-    eupago_webhook_secret = SecretKeySettingsField(
+    payment_eupago_webhook_secret = SecretKeySettingsField(
         label=_('Webhook Secret'),
-        help_text=_('Secret key for webhook signature validation'),
+        help_text=_('Secret key for webhook signature validation and encryption'),
         required=False,
     )
-    eupago_channel_id = forms.CharField(
+    payment_eupago_channel_id = forms.CharField(
         label=_('Channel ID'),
         help_text=_('Your EuPago Channel ID (found in backoffice under Channels)'),
         required=False,
         widget=forms.TextInput(attrs={'placeholder': 'Channel ID', 'class': 'form-control'})
     )
-    eupago_endpoint = forms.ChoiceField(
+    payment_eupago_endpoint = forms.ChoiceField(
         label=_('Endpoint'),
         help_text=_('Choose between sandbox (testing) and live environment'),
         choices=[
@@ -818,13 +818,13 @@ class EuPagoSettingsForm(SettingsForm):
         initial='sandbox',
         widget=forms.Select(attrs={'class': 'form-control'})
     )
-    eupago_debug_mode = forms.BooleanField(
+    payment_eupago_debug_mode = forms.BooleanField(
         label=_('Debug Mode'),
         help_text=_('Enable additional debugging information. When enabled, webhook signature validation errors will be logged in detail, and invalid signatures will be accepted for testing purposes. Disable in production.'),
         required=False,
         initial=False
     )
-    eupago_cc_description = forms.CharField(
+    payment_eupago_cc_description = forms.CharField(
         label=_('Credit Card Description'),
         help_text=_('Description shown to customers for credit card payments'),
         initial='Pay securely with your credit card',
@@ -834,7 +834,7 @@ class EuPagoSettingsForm(SettingsForm):
             'class': 'form-control'
         })
     )
-    eupago_mbway_description = forms.CharField(
+    payment_eupago_mbway_description = forms.CharField(
         label=_('MBWay Description'),
         help_text=_('Description shown to customers for MBWay payments'),
         initial='Pay with MBWay using your mobile phone',
@@ -844,7 +844,7 @@ class EuPagoSettingsForm(SettingsForm):
             'class': 'form-control'
         })
     )
-    eupago_multibanco_description = forms.CharField(
+    payment_eupago_multibanco_description = forms.CharField(
         label=_('Multibanco Description'),
         help_text=_('Description shown to customers for Multibanco payments'),
         initial='Pay via bank transfer using Multibanco reference',
@@ -854,7 +854,7 @@ class EuPagoSettingsForm(SettingsForm):
             'class': 'form-control'
         })
     )
-    eupago_payshop_description = forms.CharField(
+    payment_eupago_payshop_description = forms.CharField(
         label=_('PayShop Description'),
         help_text=_('Description shown to customers for PayShop payments'),
         initial='Pay in cash at any PayShop location',
