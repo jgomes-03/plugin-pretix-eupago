@@ -129,8 +129,32 @@ def main():
     print("=" * 80)
     
     # From your error logs:
-    encrypted_data = input("Enter encrypted data (base64): ").strip()
-    iv = input("Enter IV (base64): ").strip()
+    print("Enter data format:")
+    print("1. Base64 (from webhook JSON 'data' field)")
+    print("2. Hex (from Django logs)")
+    data_format = input("Choose format (1 or 2): ").strip()
+    
+    if data_format == "2":
+        # Hex format from logs
+        encrypted_hex = input("Enter encrypted data (hex): ").strip()
+        iv_hex = input("Enter IV (hex): ").strip()
+        
+        # Convert hex to base64
+        try:
+            encrypted_bytes = bytes.fromhex(encrypted_hex)
+            iv_bytes = bytes.fromhex(iv_hex)
+            encrypted_data = base64.b64encode(encrypted_bytes).decode('ascii')
+            iv = base64.b64encode(iv_bytes).decode('ascii')
+            print(f"Converted to base64:")
+            print(f"  Encrypted: {encrypted_data}")
+            print(f"  IV: {iv}")
+        except ValueError as e:
+            print(f"Invalid hex data: {e}")
+            return
+    else:
+        # Base64 format (original)
+        encrypted_data = input("Enter encrypted data (base64): ").strip()
+        iv = input("Enter IV (base64): ").strip()
     
     print("\nEnter webhook secrets to test (one per line, empty line to finish):")
     webhook_secrets = []
