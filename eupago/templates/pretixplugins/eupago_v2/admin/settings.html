@@ -16,11 +16,13 @@
             <h3 class="panel-title">{% trans "API Configuration" %}</h3>
         </div>
         <div class="panel-body">
-            {% bootstrap_field form.eupago_api_key %}
-            {% bootstrap_field form.eupago_client_id %}
-            {% bootstrap_field form.eupago_client_secret %}
-            {% bootstrap_field form.eupago_webhook_secret %}
-            {% bootstrap_field form.eupago_endpoint %}
+            {% bootstrap_field form.payment_eupago_api_key %}
+            {% bootstrap_field form.payment_eupago_client_id %}
+            {% bootstrap_field form.payment_eupago_client_secret %}
+            {% bootstrap_field form.payment_eupago_channel_id %}
+            {% bootstrap_field form.payment_eupago_webhook_secret %}
+            {% bootstrap_field form.payment_eupago_endpoint %}
+            {% bootstrap_field form.payment_eupago_debug_mode %}
         </div>
     </div>
     
@@ -29,10 +31,10 @@
             <h3 class="panel-title">{% trans "Payment Method Descriptions" %}</h3>
         </div>
         <div class="panel-body">
-            {% bootstrap_field form.eupago_cc_description %}
-            {% bootstrap_field form.eupago_mbway_description %}
-            {% bootstrap_field form.eupago_multibanco_description %}
-            {% bootstrap_field form.eupago_payshop_description %}
+            {% bootstrap_field form.payment_eupago_cc_description %}
+            {% bootstrap_field form.payment_eupago_mbway_description %}
+            {% bootstrap_field form.payment_eupago_multibanco_description %}
+            {% bootstrap_field form.payment_eupago_payshop_description %}
         </div>
     </div>
     
