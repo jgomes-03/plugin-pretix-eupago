@@ -1174,8 +1174,6 @@ def _decrypt_webhook_data(encrypted_data, iv=None, webhook_secret=None, organize
                                 logger.info("Using webhook secret from webhook_secret.txt file")
                     except Exception as e:
                         logger.debug(f"Could not read webhook secret file: {e}")
-        except Exception as e:
-            logger.warning(f'Could not get webhook_secret: {e}')
         
         # Validate inputs
         if not encrypted_data:
