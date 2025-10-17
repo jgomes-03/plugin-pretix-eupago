@@ -1,5 +1,5 @@
 # EuPago Integration Payment Provider - Pretix
-## Versão 1.2
+## Versão 2.0
 
 Este plugin fornece integração completa e moderna com os métodos de pagamento EuPago para o sistema Pretix, incluindo suporte completo para Webhooks 2.0 com encriptação AES-256-CBC e uma interface de utilizador melhorada.
 
