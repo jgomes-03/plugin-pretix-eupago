@@ -33,18 +33,23 @@ Updated all form field names in `EuPagoSettingsForm` to include the `payment_` p
 
 ## Files Modified
 - **`eupago/views.py`**: Updated `EuPagoSettingsForm` class field definitions (lines ~781-850)
+- **`eupago/templates/pretixplugins/eupago_v2/admin/settings.html`**: Updated form field references to use payment_ prefix
+- **`eupago/templates/pretixplugins/eupago/admin/settings.html`**: Updated form field references to use payment_ prefix
 
 ## Impact
 - ✅ **RESOLVED**: Webhook secret updates via admin interface now save to correct database key
 - ✅ **RESOLVED**: Webhook decryption will now use user-configured secret instead of fallback values
+- ✅ **RESOLVED**: Admin settings page error (BootstrapError) fixed by updating template field references
+- ✅ **ADDED**: Missing fields (channel_id, debug_mode) now accessible in admin interface
 - ✅ **MAINTAINED**: Backward compatibility maintained through fallback logic in decryption code
 - ✅ **MAINTAINED**: All existing functionality preserved
 
 ## Verification Steps
-1. **Restart Application**: Restart Django/Docker to load updated form definitions
-2. **Update Configuration**: Access EuPago Settings in admin and update webhook secret
-3. **Verify Storage**: Use `check_webhook_secret.py` to confirm correct key is being used
-4. **Test Decryption**: Create test payment in live environment to verify webhook works
+1. **Restart Application**: Restart Django/Docker to load updated form and template definitions
+2. **Access Settings**: EuPago Settings page should now load without BootstrapError
+3. **Update Configuration**: Update webhook secret and other settings via admin interface
+4. **Verify Storage**: Use `check_webhook_secret.py` to confirm correct key is being used
+5. **Test Decryption**: Create test payment in live environment to verify webhook works
 
 ## Expected Results
 After restart and reconfiguration:
