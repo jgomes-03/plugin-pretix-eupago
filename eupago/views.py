@@ -369,51 +369,81 @@ def _handle_webhook_v2(request, event_data, event_body):
         
         # Try to get webhook secret from settings
         webhook_secret = None
+        target_organizer = None
+        
         try:
             # First try to get from organizer settings
             from django_scopes import scopes_disabled
             
             with scopes_disabled():
-                # Get all organizers that might have this setting
-                organizers = Organizer.objects.all()
+                # Strategy 1: If we can extract organizer context from URL or headers, use that
+                # (This would be ideal but EuPago webhooks don't include organizer info in headers)
+                
+                # Strategy 2: Use the MOST RECENTLY CREATED organizer with webhook secret
+                # This assumes the user just updated their webhook secret on the latest organizer
+                organizers = Organizer.objects.all().order_by('-pk')  # Most recent by primary key
+                
+                webhook_secret_found = False
                 for organizer in organizers:
                     try:
                         # Check if this organizer has the webhook secret configured
-                        # First try with payment_ prefix (as used in test case)
-                        potential_secret = organizer.settings.get('payment_eupago_webhook_secret', '')
-                        if not potential_secret:
-                            # Try without prefix as a fallback
-                            potential_secret = organizer.settings.get('eupago_webhook_secret', '')
-                            
-                        if potential_secret:
-                            webhook_secret = potential_secret
-                            logger.debug(f"Using webhook secret from organizer '{organizer.slug}' settings")
+                        logger.info(f"Checking organizer '{organizer.slug}' for webhook secret")
+                        
+                        # Try all possible setting key variations in order of preference
+                        settings_to_check = [
+                            'payment_eupago_webhook_secret',  # Standard with payment_ prefix (NEW FORMAT)
+                            'eupago_webhook_secret',          # Without payment_ prefix (OLD FORMAT)
+                            'webhook_secret',                 # Simple key name
+                            'payment_webhook_secret'          # Another possible variation
+                        ]
+                        
+                        for setting_key in settings_to_check:
+                            potential_secret = organizer.settings.get(setting_key, '')
+                            if potential_secret:
+                                webhook_secret = potential_secret
+                                target_organizer = organizer
+                                webhook_secret_found = True
+                                logger.info(f"Found webhook secret in organizer '{organizer.slug}' settings using key '{setting_key}'")
+                                
+                                # Log partial secret for debugging (first 8/last 8 chars)
+                                if len(potential_secret) >= 16:
+                                    logger.info(f"Webhook secret (first 8/last 8 chars): {potential_secret[:8]}...{potential_secret[-8:]}")
+                                else:
+                                    logger.info(f"Webhook secret (length={len(potential_secret)}): {potential_secret[:4]}...")
+                                break
+                        
+                        if webhook_secret_found:
                             break
                     except Exception as e:
                         logger.debug(f"Error accessing settings for organizer {organizer.slug}: {e}")
-                
-            # If not found in organizer settings, try environment variable
-            if not webhook_secret:
-                import os
-                webhook_secret = os.environ.get('EUPAGO_WEBHOOK_SECRET', '')
-                if webhook_secret:
-                    logger.info("Using webhook secret from environment variable")
-                
-                # If no environment variable, try to read from a local file
-                if not webhook_secret:
-                    try:
-                        secret_file = os.path.join(os.path.dirname(__file__), 'webhook_secret.txt')
-                        if os.path.exists(secret_file):
-                            with open(secret_file, 'r') as f:
-                                webhook_secret = f.read().strip()
-                                logger.info("Using webhook secret from webhook_secret.txt file")
-                    except Exception as e:
-                        logger.debug(f"Could not read webhook secret file: {e}")
+                        
         except Exception as e:
-            logger.warning(f'Could not get webhook_secret: {e}')
+            logger.warning(f'Could not get webhook_secret from organizer settings: {e}')
+        
+        # Strategy 3: Fallback to environment variable if no organizer secret found
+        if not webhook_secret:
+            import os
+            webhook_secret = os.environ.get('EUPAGO_WEBHOOK_SECRET', '')
+            if webhook_secret:
+                logger.info("Using webhook secret from environment variable EUPAGO_WEBHOOK_SECRET")
+        
+        # Strategy 4: Fallback to local file if nothing else works
+        if not webhook_secret:
+            try:
+                secret_file = os.path.join(os.path.dirname(__file__), 'webhook_secret.txt')
+                if os.path.exists(secret_file):
+                    with open(secret_file, 'r') as f:
+                        webhook_secret = f.read().strip()
+                        logger.info("Using webhook secret from webhook_secret.txt file")
+            except Exception as e:
+                logger.debug(f"Could not read webhook secret file: {e}")
+        
+        if not webhook_secret:
+            logger.error("No webhook secret found in any location!")
+            return HttpResponse('Webhook secret not configured', status=500)
         
         # Decrypt the data using the IV from header
-        decrypted_data = _decrypt_webhook_data(event_data['data'], iv=iv, webhook_secret=webhook_secret)
+        decrypted_data = _decrypt_webhook_data(event_data['data'], iv=iv, webhook_secret=webhook_secret, organizer=target_organizer)
         
         if decrypted_data:
             logger.debug('Webhook data decrypted successfully')
@@ -1053,7 +1083,7 @@ class EuPagoSettingsView(OrganizerDetailViewMixin, OrganizerPermissionRequiredMi
         return context
 
 
-def _decrypt_webhook_data(encrypted_data, iv=None, webhook_secret=None):
+def _decrypt_webhook_data(encrypted_data, iv=None, webhook_secret=None, organizer=None):
     """Decrypt encrypted webhook data using AES-256-CBC
     
     Matches EuPago PHP documentation exactly:
@@ -1068,6 +1098,7 @@ def _decrypt_webhook_data(encrypted_data, iv=None, webhook_secret=None):
         encrypted_data (str): Base64 encoded encrypted data from the 'data' field
         iv (str, optional): Base64 encoded initialization vector from X-Initialization-Vector header  
         webhook_secret (str, optional): The encryption key (same as webhook secret)
+        organizer (Organizer, optional): Specific organizer to get webhook secret from
         
     Returns:
         str: Decrypted data as a string, or None if decryption fails
@@ -1084,17 +1115,24 @@ def _decrypt_webhook_data(encrypted_data, iv=None, webhook_secret=None):
                 from django_scopes import scopes_disabled
                 
                 with scopes_disabled():
-                    # Get all organizers that might have this setting
-                    organizers = Organizer.objects.all()
-                    for organizer in organizers:
+                    # If specific organizer provided, use that
+                    if organizer:
+                        organizers_to_check = [organizer]
+                        logger.info(f"Using specific organizer '{organizer.slug}' for webhook secret lookup")
+                    else:
+                        # Use deterministic ordering - most recently created organizer first
+                        organizers_to_check = Organizer.objects.all().order_by('-pk')
+                        logger.info("Searching all organizers for webhook secret (deterministic order)")
+                    
+                    for organizer in organizers_to_check:
                         try:
                             # Check if this organizer has the webhook secret configured
                             logger.info(f"Checking organizer '{organizer.slug}' for webhook secret")
                             
-                            # Try all possible setting key variations
+                            # Try all possible setting key variations in order of preference
                             settings_to_check = [
-                                'payment_eupago_webhook_secret',  # Standard with payment_ prefix
-                                'eupago_webhook_secret',          # Without payment_ prefix
+                                'payment_eupago_webhook_secret',  # Standard with payment_ prefix (NEW FORMAT)
+                                'eupago_webhook_secret',          # Without payment_ prefix (OLD FORMAT)
                                 'webhook_secret',                 # Simple key name
                                 'payment_webhook_secret'          # Another possible variation
                             ]
@@ -1105,11 +1143,11 @@ def _decrypt_webhook_data(encrypted_data, iv=None, webhook_secret=None):
                                     webhook_secret = potential_secret
                                     logger.info(f"Found webhook secret in organizer '{organizer.slug}' settings using key '{setting_key}'")
                                     
-                                    # Log partial secret for debugging (first 3 chars only)
-                                    if len(potential_secret) > 5:
-                                        logger.info(f"Secret starts with: {potential_secret[:3]}...")
+                                    # Log partial secret for debugging (first 8/last 8 chars)
+                                    if len(potential_secret) >= 16:
+                                        logger.info(f"Webhook secret (first 8/last 8 chars): {potential_secret[:8]}...{potential_secret[-8:]}")
                                     else:
-                                        logger.info("Secret is too short, might be invalid")
+                                        logger.info(f"Webhook secret (length={len(potential_secret)}): {potential_secret[:4]}...")
                                     break
                             
                             if webhook_secret:
@@ -1136,6 +1174,8 @@ def _decrypt_webhook_data(encrypted_data, iv=None, webhook_secret=None):
                                 logger.info("Using webhook secret from webhook_secret.txt file")
                     except Exception as e:
                         logger.debug(f"Could not read webhook secret file: {e}")
+        except Exception as e:
+            logger.warning(f'Could not get webhook_secret: {e}')
         
         # Validate inputs
         if not encrypted_data:

@@ -1,17 +1,18 @@
 # EuPago Configuration Fix Summary
 
 ## Problem Identified
-The user reported that updating the webhook secret in the admin interface wasn't affecting webhook decryption. The logs showed a specific webhook secret (`F7b54HQE...psBQ3ZXo`) that didn't match what they had configured.
+The user reported that updating the webhook secret in the admin interface wasn't affecting webhook decryption. The logs showed a specific webhook secret (`F7b54HQE...psBQ3ZXo`) that didn't match what they had configured (`7EL2FPIt...939k`).
 
 ## Root Cause Analysis
-**Issue**: Form field naming inconsistency between `EuPagoSettingsForm` field definitions and database storage.
+**Issue 1**: Form field naming inconsistency between `EuPagoSettingsForm` field definitions and database storage.
+**Issue 2**: Webhook secret retrieval logic was non-deterministic and picked the first organizer with a webhook secret.
 
 **Explanation**: 
 - Pretix SettingsForm automatically adds a `payment_` prefix to field names when saving to database
 - The EuPago form fields were defined WITHOUT this prefix (e.g., `eupago_webhook_secret`)
 - When saved, they were stored as `eupago_webhook_secret` instead of `payment_eupago_webhook_secret`
 - The webhook decryption code was looking for `payment_eupago_webhook_secret` (correct key)
-- This caused the code to always use fallback/old values instead of user-configured values
+- Additionally, the webhook handler was searching through ALL organizers and using the webhook secret from the FIRST organizer found, not necessarily the correct one
 
 ## Fields Fixed
 Updated all form field names in `EuPagoSettingsForm` to include the `payment_` prefix:
@@ -32,7 +33,10 @@ Updated all form field names in `EuPagoSettingsForm` to include the `payment_` p
 - ✅ `eupago_payshop_description` → `payment_eupago_payshop_description`
 
 ## Files Modified
-- **`eupago/views.py`**: Updated `EuPagoSettingsForm` class field definitions (lines ~781-850)
+- **`eupago/views.py`**: 
+  - Updated `EuPagoSettingsForm` class field definitions (lines ~781-850)
+  - Fixed webhook secret retrieval logic to be deterministic (lines ~370-420)
+  - Updated `_decrypt_webhook_data` function to accept organizer parameter (lines ~1090+)
 - **`eupago/templates/pretixplugins/eupago_v2/admin/settings.html`**: Updated form field references to use payment_ prefix
 - **`eupago/templates/pretixplugins/eupago/admin/settings.html`**: Updated form field references to use payment_ prefix
 
@@ -40,6 +44,8 @@ Updated all form field names in `EuPagoSettingsForm` to include the `payment_` p
 - ✅ **RESOLVED**: Webhook secret updates via admin interface now save to correct database key
 - ✅ **RESOLVED**: Webhook decryption will now use user-configured secret instead of fallback values
 - ✅ **RESOLVED**: Admin settings page error (BootstrapError) fixed by updating template field references
+- ✅ **RESOLVED**: Webhook secret retrieval is now deterministic (uses most recent organizer with secret)
+- ✅ **IMPROVED**: Better logging shows which organizer and key is being used for webhook secret
 - ✅ **ADDED**: Missing fields (channel_id, debug_mode) now accessible in admin interface
 - ✅ **MAINTAINED**: Backward compatibility maintained through fallback logic in decryption code
 - ✅ **MAINTAINED**: All existing functionality preserved
