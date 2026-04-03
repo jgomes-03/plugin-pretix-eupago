@@ -367,9 +367,19 @@ def _handle_webhook_v2(request, event_data, event_body):
             logger.error('Missing X-Initialization-Vector header - required for decryption')
             return HttpResponse('Missing IV header', status=400)
         
-        # Try to get webhook secret from settings
-        webhook_secret = None
+        # Try to get webhook secrets from all possible sources and attempt decryption with each.
         target_organizer = None
+        candidate_secrets = []
+        seen_secrets = set()
+
+        def _add_candidate(secret_value, source, organizer_obj=None):
+            secret_value = (secret_value or '').strip()
+            if not secret_value:
+                return
+            if secret_value in seen_secrets:
+                return
+            seen_secrets.add(secret_value)
+            candidate_secrets.append((secret_value, organizer_obj, source))
         
         try:
             # First try to get from organizer settings
@@ -379,11 +389,8 @@ def _handle_webhook_v2(request, event_data, event_body):
                 # Strategy 1: If we can extract organizer context from URL or headers, use that
                 # (This would be ideal but EuPago webhooks don't include organizer info in headers)
                 
-                # Strategy 2: Use the MOST RECENTLY CREATED organizer with webhook secret
-                # This assumes the user just updated their webhook secret on the latest organizer
+                # Strategy 2: Collect organizer secrets and try all of them for decryption.
                 organizers = Organizer.objects.all().order_by('-pk')  # Most recent by primary key
-                
-                webhook_secret_found = False
                 for organizer in organizers:
                     try:
                         # Check if this organizer has the webhook secret configured
@@ -400,9 +407,7 @@ def _handle_webhook_v2(request, event_data, event_body):
                         for setting_key in settings_to_check:
                             potential_secret = organizer.settings.get(setting_key, '')
                             if potential_secret:
-                                webhook_secret = potential_secret
-                                target_organizer = organizer
-                                webhook_secret_found = True
+                                _add_candidate(potential_secret, f"organizer:{organizer.slug}:{setting_key}", organizer)
                                 logger.info(f"Found webhook secret in organizer '{organizer.slug}' settings using key '{setting_key}'")
                                 
                                 # Log partial secret for debugging (first 8/last 8 chars)
@@ -410,40 +415,50 @@ def _handle_webhook_v2(request, event_data, event_body):
                                     logger.info(f"Webhook secret (first 8/last 8 chars): {potential_secret[:8]}...{potential_secret[-8:]}")
                                 else:
                                     logger.info(f"Webhook secret (length={len(potential_secret)}): {potential_secret[:4]}...")
-                                break
-                        
-                        if webhook_secret_found:
-                            break
                     except Exception as e:
                         logger.debug(f"Error accessing settings for organizer {organizer.slug}: {e}")
                         
         except Exception as e:
             logger.warning(f'Could not get webhook_secret from organizer settings: {e}')
         
-        # Strategy 3: Fallback to environment variable if no organizer secret found
-        if not webhook_secret:
-            import os
-            webhook_secret = os.environ.get('EUPAGO_WEBHOOK_SECRET', '')
-            if webhook_secret:
-                logger.info("Using webhook secret from environment variable EUPAGO_WEBHOOK_SECRET")
+        # Strategy 3: Fallback to environment variable
+        env_secret = os.environ.get('EUPAGO_WEBHOOK_SECRET', '')
+        if env_secret:
+            _add_candidate(env_secret, 'env:EUPAGO_WEBHOOK_SECRET')
+            logger.info("Loaded webhook secret from environment variable EUPAGO_WEBHOOK_SECRET")
         
-        # Strategy 4: Fallback to local file if nothing else works
-        if not webhook_secret:
-            try:
-                secret_file = os.path.join(os.path.dirname(__file__), 'webhook_secret.txt')
-                if os.path.exists(secret_file):
-                    with open(secret_file, 'r') as f:
-                        webhook_secret = f.read().strip()
-                        logger.info("Using webhook secret from webhook_secret.txt file")
-            except Exception as e:
-                logger.debug(f"Could not read webhook secret file: {e}")
+        # Strategy 4: Fallback to local file
+        try:
+            secret_file = os.path.join(os.path.dirname(__file__), 'webhook_secret.txt')
+            if os.path.exists(secret_file):
+                with open(secret_file, 'r') as f:
+                    file_secret = f.read().strip()
+                    if file_secret:
+                        _add_candidate(file_secret, 'file:webhook_secret.txt')
+                        logger.info("Loaded webhook secret from webhook_secret.txt file")
+        except Exception as e:
+            logger.debug(f"Could not read webhook secret file: {e}")
         
-        if not webhook_secret:
+        if not candidate_secrets:
             logger.error("No webhook secret found in any location!")
             return HttpResponse('Webhook secret not configured', status=500)
-        
-        # Decrypt the data using the IV from header
-        decrypted_data = _decrypt_webhook_data(event_data['data'], iv=iv, webhook_secret=webhook_secret, organizer=target_organizer)
+
+        logger.info(f'Trying webhook decryption with {len(candidate_secrets)} secret candidate(s)')
+
+        # Decrypt the data using candidate secrets until one succeeds.
+        decrypted_data = None
+        for secret_value, organizer_obj, source in candidate_secrets:
+            decrypted_data = _decrypt_webhook_data(
+                event_data['data'],
+                iv=iv,
+                webhook_secret=secret_value,
+                organizer=organizer_obj,
+            )
+            if decrypted_data:
+                target_organizer = organizer_obj
+                logger.info(f'Webhook decryption succeeded using {source}')
+                break
+            logger.warning(f'Webhook decryption failed using {source}')
         
         if decrypted_data:
             logger.debug('Webhook data decrypted successfully')

@@ -13,6 +13,7 @@ from django.template.loader import get_template
 from django.urls import reverse
 from django.utils import timezone
 from django.utils.translation import gettext_lazy as _, pgettext_lazy
+import phonenumbers
 
 from pretix.base.forms import SecretKeySettingsField
 from pretix.base.models import Event, Order, OrderPayment
@@ -175,6 +176,36 @@ class EuPagoBaseProvider(BasePaymentProvider):
         logger.debug(f'EuPagoBaseProvider: Final headers: {headers}')        
         return headers
 
+    def _normalize_mbway_phone(self, phone: str) -> tuple[str, str]:
+        raw_phone = str(phone or '').strip()
+        if not raw_phone:
+            raise PaymentException(_('Phone number is required for MBWay payments'))
+
+        region = self.event.settings.region if self.event.settings.region in getattr(phonenumbers, 'SUPPORTED_REGIONS', set()) else None
+        parsed_phone = None
+        try:
+            parsed_phone = phonenumbers.parse(raw_phone, region)
+        except Exception:
+            parsed_phone = None
+
+        if parsed_phone and phonenumbers.is_valid_number(parsed_phone):
+            country_code = str(parsed_phone.country_code)
+            customer_phone = str(parsed_phone.national_number)
+        else:
+            digits_only = ''.join(ch for ch in raw_phone if ch.isdigit())
+            if digits_only.startswith('351') and len(digits_only) > 9:
+                digits_only = digits_only[3:]
+                country_code = '351'
+            else:
+                country_code = str(getattr(parsed_phone, 'country_code', 351) or 351)
+            customer_phone = digits_only
+
+        if not customer_phone:
+            raise PaymentException(_('Phone number is required for MBWay payments'))
+
+        logger.debug(f'Normalized MBWay phone: countryCode={country_code}, customerPhone={customer_phone}')
+        return customer_phone, country_code
+
     def _make_api_request(self, endpoint: str, data: dict, method: str = 'POST', payment_method: str = None) -> dict:
         """Make API request to EuPago"""
         from .config import AUTH_METHODS
@@ -214,12 +245,27 @@ class EuPagoBaseProvider(BasePaymentProvider):
             if hasattr(e, 'response') and e.response is not None:
                 logger.error(f'Response status: {e.response.status_code}')
                 logger.error(f'Response text: {e.response.text}')
+
+                response_detail = None
+                try:
+                    payload = e.response.json()
+                    if isinstance(payload, dict):
+                        code = payload.get('code') or payload.get('errorCode') or payload.get('error_code')
+                        text = payload.get('text') or payload.get('message') or payload.get('error')
+                        status = payload.get('transactionStatus') or payload.get('status') or payload.get('estado')
+                        parts = [p for p in [status, code, text] if p]
+                        if parts:
+                            response_detail = ' | '.join(str(p) for p in parts)
+                except Exception:
+                    response_detail = (e.response.text or '').strip()[:300] or None
                 
                 # Specific error messages for common issues
                 if e.response.status_code == 401:
                     raise PaymentException(_('Authentication failed. Please check your EuPago API key configuration.'))
                 elif e.response.status_code == 403:
                     raise PaymentException(_('Access denied. Please verify your EuPago API permissions.'))
+                elif response_detail:
+                    raise PaymentException(_('Payment provider communication failed: {}').format(response_detail))
                     
             raise PaymentException(_('Payment provider communication failed. Please try again later.'))
 
@@ -1117,6 +1163,8 @@ class EuPagoMBWay(EuPagoBaseProvider):
         if not phone:
             raise PaymentException(_('Phone number is required for MBWay payments'))
 
+        customer_phone, country_code = self._normalize_mbway_phone(phone)
+
         # Use the correct EuPago API structure from documentation
         data = {
             "payment": {
@@ -1124,9 +1172,9 @@ class EuPagoMBWay(EuPagoBaseProvider):
                     "currency": "EUR",
                     "value": float(payment.amount)
                 },
-                "customerPhone": phone,
+                "customerPhone": customer_phone,
                 "identifier": payment.full_id,
-                "countryCode": "+351",  # Default to Portugal
+                "countryCode": country_code,
                 "webhookUrl": request.build_absolute_uri(reverse('plugins:eupago:webhook'))
             }
         }
@@ -1152,6 +1200,10 @@ class EuPagoMBWay(EuPagoBaseProvider):
             else:
                 raise PaymentException(_('MBWay payment initialization failed'))
                 
+        except PaymentException as e:
+            logger.error(f'MBWay payment failed: {e}')
+            payment.fail(info={'error': str(e)})
+            raise
         except Exception as e:
             logger.error(f'MBWay payment failed: {e}')
             payment.fail(info={'error': str(e)})
@@ -1232,12 +1284,27 @@ class EuPagoMBWayNew(EuPagoBaseProvider):
             if hasattr(e, 'response') and e.response is not None:
                 logger.error(f'Response status: {e.response.status_code}')
                 logger.error(f'Response text: {e.response.text}')
+
+                response_detail = None
+                try:
+                    payload = e.response.json()
+                    if isinstance(payload, dict):
+                        code = payload.get('code') or payload.get('errorCode') or payload.get('error_code')
+                        text = payload.get('text') or payload.get('message') or payload.get('error')
+                        status = payload.get('transactionStatus') or payload.get('status') or payload.get('estado')
+                        parts = [p for p in [status, code, text] if p]
+                        if parts:
+                            response_detail = ' | '.join(str(p) for p in parts)
+                except Exception:
+                    response_detail = (e.response.text or '').strip()[:300] or None
                 
                 # Specific error messages for common issues
                 if e.response.status_code == 401:
                     raise PaymentException(_('MBWay authentication failed. Please check your MBWay API key configuration.'))
                 elif e.response.status_code == 403:
                     raise PaymentException(_('MBWay access denied. Please verify your MBWay API permissions.'))
+                elif response_detail:
+                    raise PaymentException(_('MBWay payment provider communication failed: {}').format(response_detail))
                     
             raise PaymentException(_('MBWay payment provider communication failed. Please try again later.'))
 
