@@ -586,7 +586,7 @@ def _handle_webhook_v2(request, event_data, event_body):
                 _handle_payment_completed(payment, actual_transaction_data)
             elif status in ['error', 'failed', 'failure']:
                 _handle_payment_failed(payment, actual_transaction_data)
-            elif status in ['cancel', 'cancelled']:
+            elif status in ['cancel', 'cancelled', 'canceled']:
                 _handle_payment_cancelled(payment, actual_transaction_data)
             elif status == 'expired':
                 _handle_payment_expired(payment, actual_transaction_data)
