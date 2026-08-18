@@ -12,7 +12,6 @@ event_patterns = [
             EuPagoReturnView.as_view(),
             name='return'
         ),
-        # Padrões adicionais para URLs com status explícito
         re_path(
             r'^return/(?P<order>[^/]+)/(?P<hash>[^/]+)/(?P<payment>[0-9]+)/(?P<status>success|fail|back)/$',
             EuPagoReturnView.as_view(),
@@ -26,19 +25,25 @@ event_patterns = [
     ])),
 ]
 
-# Organizer-level patterns for settings
-organizer_patterns = [
-    path('settings/eupago/', EuPagoSettingsView.as_view(), name='settings'),
-]
+# Do NOT place settings or control views here. 
+# organizer_patterns are served on the organizer's custom domain (public-facing views only).
+organizer_patterns = []
 
-# Global webhook URL - same for all events and organizers
+# Global & Control Panel URLs
 urlpatterns = [
+    # Control Panel Organizer Settings (Always served on the main domain)
+    path(
+        'control/organizer/<slug:organizer>/settings/eupago/',
+        EuPagoSettingsView.as_view(),
+        name='settings'
+    ),
+    
+    # Webhooks & callbacks
     re_path(
         r'^_eupago/webhook/$',
         webhook,
         name='webhook'
     ),
-    # Teste de webhook - para diagnóstico
     re_path(
         r'^_eupago/test_webhook/$',
         lambda request: HttpResponse('Webhook test endpoint is working!', status=200),
@@ -47,8 +52,4 @@ urlpatterns = [
     path('webhook/', webhook, name='webhook'),
     path('return/<slug:order>/<str:hash>/<int:payment>/', EuPagoReturnView.as_view(), name='return'),
     path('mbway_wait/<slug:order>/<str:hash>/<int:payment>/', EuPagoMBWayWaitView.as_view(), name='mbway_wait'),
-    path('settings/<slug:organizer>/', EuPagoSettingsView.as_view(), name='settings'),
-    
-    # Debug endpoint - disabled in production, enable only for troubleshooting
-    # path('debug_webhook_secret/', debug_webhook_secret, name='debug_webhook_secret'),
 ]
