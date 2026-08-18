@@ -1745,7 +1745,9 @@ class EuPagoPayByLink(EuPagoBaseProvider):
                 'backUrl': back_url
             },
             'urlReturn': return_url_base,
-            'urlCallback': request.build_absolute_uri(reverse('plugins:eupago:webhook'))
+            'urlCallback': request.build_absolute_uri(
+                reverse('plugins:eupago:webhook', urlconf=settings.ROOT_URLCONF)
+            )
         }
         
         # Adicionar descrição personalizada se configurada
