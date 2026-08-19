@@ -187,6 +187,9 @@
             <p class="text-muted">
                 {% trans "Please check your mobile phone for the MBWay notification" %}
             </p>
+            <p class="text-muted mb-0">
+                {% trans "Time remaining:" %} <strong id="time-remaining">05:00</strong>
+            </p>
         </div>
         
         <!-- Payment Details -->
@@ -226,7 +229,7 @@
         
         <!-- Action Buttons -->
         <div class="btn-group">
-            <button class="btn-custom btn-primary-custom" onclick="checkPaymentStatus()">
+            <button id="check-status-btn" class="btn-custom btn-primary-custom" onclick="checkPaymentStatus()">
                 <span class="loading-spinner" id="check-spinner" style="display: none;"></span>
                 <i class="fas fa-sync-alt" id="check-icon"></i>
                 <span id="check-text">{% trans "Check Status" %}</span>
@@ -243,44 +246,62 @@
 
 {% block javascript %}
     <script>
-        // Simple MBWay payment monitoring - no timer, webhook-based
-        var pollInterval;
-        var pollRetries = 0;
-        var maxRetries = 5;
-        var baseDelay = 5000; // 5 seconds - longer delays since we rely on webhooks
-        
-        console.log('MBWay: Initializing payment monitoring (webhook-based)');
-        
-        // Start polling when page loads
+        var pollInterval = null;
+        var countdownInterval = null;
+        var remainingSeconds = {{ remaining_seconds|default:300 }};
+        var timerReachedZero = false;
+
         document.addEventListener('DOMContentLoaded', function() {
-            startPolling();
-            
-            // Add visibility change handler to resume polling when user returns
-            document.addEventListener('visibilitychange', function() {
-                if (!document.hidden && !pollInterval) {
-                    console.log('MBWay: Page became visible, resuming polling');
-                    startPolling();
-                }
-            });
+            updateTimerDisplay();
+            countdownInterval = setInterval(tickCountdown, 1000);
+            pollInterval = setInterval(function() { checkPaymentStatus(false); }, 3000);
+            checkPaymentStatus(false);
         });
-        
-        function startPolling() {
-            // Clear any existing polling
+
+        function tickCountdown() {
+            if (remainingSeconds <= 0) {
+                if (!timerReachedZero) {
+                    timerReachedZero = true;
+                    checkPaymentStatus(false);
+                }
+                return;
+            }
+            remainingSeconds -= 1;
+            updateTimerDisplay();
+        }
+
+        function updateTimerDisplay() {
+            var minutes = String(Math.floor(remainingSeconds / 60)).padStart(2, '0');
+            var seconds = String(remainingSeconds % 60).padStart(2, '0');
+            var timerElement = document.getElementById('time-remaining');
+            if (timerElement) {
+                timerElement.textContent = minutes + ':' + seconds;
+            }
+        }
+
+        function clearPolling() {
             if (pollInterval) {
                 clearInterval(pollInterval);
+                pollInterval = null;
             }
-            
-            // Reset retry counter
-            pollRetries = 0;
-            
-            // Start polling every 5 seconds - webhooks should handle most updates
-            pollInterval = setInterval(checkPaymentStatus, baseDelay);
-            
-            // Do an immediate check
-            checkPaymentStatus();
+            if (countdownInterval) {
+                clearInterval(countdownInterval);
+                countdownInterval = null;
+            }
         }
-        
-        function checkPaymentStatus() {
+
+        function checkPaymentStatus(manual) {
+            var button = document.getElementById('check-status-btn');
+            var spinner = document.getElementById('check-spinner');
+            var icon = document.getElementById('check-icon');
+            var text = document.getElementById('check-text');
+            if (manual && button) {
+                spinner.style.display = 'inline-block';
+                icon.style.display = 'none';
+                text.textContent = '{% trans "Checking..." %}';
+                button.disabled = true;
+            }
+
             fetch(window.location.href, {
                 method: 'POST',
                 headers: {
@@ -298,51 +319,36 @@
                 return response.json();
             })
             .then(data => {
-                console.log('MBWay: Payment status check result:', data);
-                pollRetries = 0; // Reset retry counter on success
-                
                 if (data.confirmed) {
-                    console.log('MBWay: Payment confirmed, redirecting...');
+                    clearPolling();
                     showPaymentSuccess();
                     setTimeout(() => {
                         window.location.href = data.redirect_url;
-                    }, 2000);
-                } else if (data.failed) {
-                    console.log('MBWay: Payment failed, redirecting...');
+                    }, 1500);
+                } else if (data.failed || data.timed_out) {
+                    clearPolling();
                     showPaymentError();
                     setTimeout(() => {
                         window.location.href = data.redirect_url;
-                    }, 3000);
-                } else {
-                    console.log('MBWay: Payment still pending...');
+                    }, 1500);
                 }
             })
-            .catch(error => {
-                console.error('MBWay: Error checking payment status:', error);
-                handlePollingError();
+            .catch(() => {
+                if (manual) {
+                    showErrorMessage('{% trans "Connection error. Please refresh the page to continue monitoring your payment." %}');
+                }
+            })
+            .finally(() => {
+                if (manual && button) {
+                    spinner.style.display = 'none';
+                    icon.style.display = 'inline-block';
+                    text.textContent = '{% trans "Check Status" %}';
+                    button.disabled = false;
+                }
             });
         }
-        
-        function handlePollingError() {
-            pollRetries++;
-            
-            if (pollRetries >= maxRetries) {
-                console.error('MBWay: Max retries reached, stopping polling');
-                clearInterval(pollInterval);
-                pollInterval = null;
-                showErrorMessage('Connection error. Please refresh the page to continue monitoring your payment.');
-                return;
-            }
-            
-            console.log(`MBWay: Retrying (attempt ${pollRetries}/${maxRetries})`);
-        }
-        
+         
         function showPaymentSuccess() {
-            if (pollInterval) {
-                clearInterval(pollInterval);
-                pollInterval = null;
-            }
-            
             const statusDisplay = document.getElementById('status-display');
             
             if (statusDisplay) {
@@ -357,20 +363,15 @@
         }
         
         function showPaymentError() {
-            if (pollInterval) {
-                clearInterval(pollInterval);
-                pollInterval = null;
-            }
-            
             const statusDisplay = document.getElementById('status-display');
             
             if (statusDisplay) {
                 statusDisplay.innerHTML = `
                     <h4 class="status-error">
                         <i class="fas fa-times-circle"></i>
-                        {% trans "Payment Failed" %}
+                        {% trans "Payment Pending Timeout" %}
                     </h4>
-                    <p>{% trans "Redirecting to try again..." %}</p>
+                    <p>{% trans "The payment window ended and the order will be cancelled." %}</p>
                 `;
             }
         }
@@ -408,54 +409,6 @@
             return cookieValue;
         }
         
-        // Manual status check function for the button
-        window.checkPaymentStatus = function() {
-            const button = event.target.closest('button');
-            const spinner = document.getElementById('check-spinner');
-            const icon = document.getElementById('check-icon');
-            const text = document.getElementById('check-text');
-            
-            // Show loading state
-            spinner.style.display = 'inline-block';
-            icon.style.display = 'none';
-            text.textContent = '{% trans "Checking..." %}';
-            button.disabled = true;
-            
-            // Perform check
-            fetch(window.location.href, {
-                method: 'POST',
-                headers: {
-                    'X-Requested-With': 'XMLHttpRequest',
-                    'X-CSRFToken': getCookie('csrftoken'),
-                    'Content-Type': 'application/json',
-                    'Cache-Control': 'no-cache'
-                },
-                credentials: 'same-origin'
-            })
-            .then(response => response.json())
-            .then(data => {
-                if (data.confirmed) {
-                    showPaymentSuccess();
-                    setTimeout(() => {
-                        window.location.href = data.redirect_url;
-                    }, 2000);
-                } else if (data.failed) {
-                    showPaymentError();
-                    setTimeout(() => {
-                        window.location.href = data.redirect_url;
-                    }, 3000);
-                }
-            })
-            .catch(error => {
-                console.error('Manual status check error:', error);
-            })
-            .finally(() => {
-                // Reset button state
-                spinner.style.display = 'none';
-                icon.style.display = 'inline-block';
-                text.textContent = '{% trans "Check Status" %}';
-                button.disabled = false;
-            });
-        };
+        window.checkPaymentStatus = function() { checkPaymentStatus(true); };
     </script>
 {% endblock %}

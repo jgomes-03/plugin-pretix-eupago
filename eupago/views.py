@@ -1,6 +1,7 @@
 import json
 import logging
 import os
+from datetime import timedelta
 from django.http import Http404, HttpResponse, HttpResponseBadRequest
 from django.shortcuts import get_object_or_404, redirect
 from django.views import View
@@ -12,6 +13,7 @@ from django_scopes import scopes_disabled
 from django.db import transaction
 from django.template.loader import get_template
 from django.utils import timezone
+from django.utils.dateparse import parse_datetime
 import base64
 import hashlib
 from Crypto.Cipher import AES
@@ -174,6 +176,7 @@ class EuPagoReturnView(View):
 @method_decorator(xframe_options_exempt, 'dispatch')
 class EuPagoMBWayWaitView(View):
     """MBWay payment waiting page with timer"""
+    WAIT_TIMEOUT_SECONDS = 300
     
     def dispatch(self, request, *args, **kwargs):
         try:
@@ -194,8 +197,22 @@ class EuPagoMBWayWaitView(View):
 
     def get(self, request, *args, **kwargs):
         """Show MBWay waiting page"""
-        from pretix.multidomain.urlreverse import build_absolute_uri, eventreverse
-        
+        from pretix.multidomain.urlreverse import eventreverse
+
+        payment_info = self._get_payment_info()
+        wait_started_at = self._get_wait_started_at(payment_info)
+        if wait_started_at and self._is_wait_expired(wait_started_at):
+            self._cancel_expired_payment_and_order()
+            messages.error(request, _('Payment timed out after 5 minutes and the order was cancelled.'))
+            return redirect(eventreverse(
+                self.order.event,
+                'presale:event.order',
+                kwargs={
+                    'order': self.order.code,
+                    'secret': self.order.secret
+                }
+            ))
+         
         # Check if payment is already confirmed
         if self.payment.state == OrderPayment.PAYMENT_STATE_CONFIRMED:
             return redirect(eventreverse(
@@ -221,16 +238,14 @@ class EuPagoMBWayWaitView(View):
         
         # Show waiting page
         template = get_template('pretixplugins/eupago/mbway_wait.html')
-        
-        # Get phone number from payment info
-        payment_info = {}
-        try:
-            payment_info = json.loads(self.payment.info or '{}')
-        except:
-            pass
-            
+
         phone = payment_info.get('customerPhone', '')
-        
+        timeout_seconds = int(payment_info.get('wait_timeout_seconds') or self.WAIT_TIMEOUT_SECONDS)
+        remaining_seconds = timeout_seconds
+        if wait_started_at:
+            elapsed = int((timezone.now() - wait_started_at).total_seconds())
+            remaining_seconds = max(0, timeout_seconds - elapsed)
+         
         ctx = {
             'request': request,
             'event': self.order.event,
@@ -238,6 +253,8 @@ class EuPagoMBWayWaitView(View):
             'payment': self.payment,
             'phone': phone,
             'amount': self.payment.amount,
+            'timeout_seconds': timeout_seconds,
+            'remaining_seconds': remaining_seconds,
         }
         
         return HttpResponse(template.render(ctx))
@@ -245,6 +262,9 @@ class EuPagoMBWayWaitView(View):
     def post(self, request, *args, **kwargs):
         """Handle AJAX status checks"""
         if request.headers.get('X-Requested-With') == 'XMLHttpRequest':
+            payment_info = self._get_payment_info()
+            wait_started_at = self._get_wait_started_at(payment_info)
+
             # Optionally check with EuPago API for current status
             try:
                 provider = self.payment.payment_provider
@@ -256,6 +276,14 @@ class EuPagoMBWayWaitView(View):
             
             # Refresh payment from database in case it was updated
             self.payment.refresh_from_db()
+
+            if (
+                wait_started_at and
+                self._is_wait_expired(wait_started_at) and
+                self.payment.state == OrderPayment.PAYMENT_STATE_PENDING
+            ):
+                self._cancel_expired_payment_and_order()
+                self.payment.refresh_from_db()
             
             # Return current payment status as JSON
             status = {
@@ -264,6 +292,9 @@ class EuPagoMBWayWaitView(View):
                 'confirmed': self.payment.state == OrderPayment.PAYMENT_STATE_CONFIRMED,
                 'failed': self.payment.state in [OrderPayment.PAYMENT_STATE_FAILED, OrderPayment.PAYMENT_STATE_CANCELED],
                 'pending': self.payment.state == OrderPayment.PAYMENT_STATE_PENDING,
+                'timed_out': self.payment.state == OrderPayment.PAYMENT_STATE_CANCELED and (
+                    wait_started_at is not None and self._is_wait_expired(wait_started_at)
+                ),
             }
             
             if status['confirmed']:
@@ -291,6 +322,44 @@ class EuPagoMBWayWaitView(View):
         
         # Non-AJAX request - redirect back to get
         return redirect(request.path)
+
+    def _get_payment_info(self):
+        try:
+            return json.loads(self.payment.info or '{}')
+        except Exception:
+            return {}
+
+    def _get_wait_started_at(self, payment_info):
+        wait_started_raw = payment_info.get('wait_started_at')
+        if not wait_started_raw:
+            return None
+        parsed = parse_datetime(wait_started_raw)
+        if not parsed:
+            return None
+        if timezone.is_naive(parsed):
+            parsed = timezone.make_aware(parsed, timezone.get_current_timezone())
+        return parsed
+
+    def _is_wait_expired(self, wait_started_at):
+        return timezone.now() >= wait_started_at + timedelta(seconds=self.WAIT_TIMEOUT_SECONDS)
+
+    def _cancel_expired_payment_and_order(self):
+        if self.payment.state == OrderPayment.PAYMENT_STATE_CONFIRMED:
+            return
+
+        if self.payment.state != OrderPayment.PAYMENT_STATE_CANCELED:
+            payment_info = self._get_payment_info()
+            payment_info['cancelled_by_timeout'] = True
+            payment_info['cancelled_at'] = timezone.now().isoformat()
+            self.payment.state = OrderPayment.PAYMENT_STATE_CANCELED
+            self.payment.info = json.dumps(payment_info)
+            self.payment.save(update_fields=['state', 'info'])
+
+        cancelled_status = getattr(Order, 'STATUS_CANCELED', 'c')
+        confirmed_status = getattr(Order, 'STATUS_PAID', None)
+        if self.order.status != cancelled_status and self.order.status != confirmed_status:
+            self.order.status = cancelled_status
+            self.order.save(update_fields=['status'])
 
 
 @csrf_exempt
