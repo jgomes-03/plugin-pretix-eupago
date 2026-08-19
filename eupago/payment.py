@@ -1177,7 +1177,9 @@ class EuPagoMBWay(EuPagoBaseProvider):
                 "customerPhone": customer_phone,
                 "identifier": payment.full_id,
                 "countryCode": country_code,
-                "webhookUrl": request.build_absolute_uri(reverse('plugins:eupago:webhook'))
+                "webhookUrl": request.build_absolute_uri(
+                    reverse('plugins:eupago:webhook', urlconf=settings.ROOT_URLCONF)
+                )
             }
         }
         
