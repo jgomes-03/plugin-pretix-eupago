@@ -201,7 +201,7 @@
                 <i class="fa fa-refresh"></i>
                 {% trans "Check Status" %}
             </a>
-            <a href="{% url 'presale:event.order.cancel' organizer=event.organizer.slug event=event.slug order=order.code secret=order.secret %}" class="btn-custom btn-secondary-custom">
+            <a href="{% url 'presale:event.order.cancel' event=event.slug order=order.code secret=order.secret %}" class="btn-custom btn-secondary-custom">
                 <i class="fa fa-times"></i>
                 {% trans "Cancel Payment" %}
             </a>

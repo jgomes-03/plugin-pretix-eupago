@@ -123,7 +123,7 @@
                     <span class="fa fa-refresh" aria-hidden="true"></span>
                     <span id="check-text">{% trans "Check status now" %}</span>
                 </button>
-                <a href="{% url 'presale:event.order.cancel' organizer=event.organizer.slug event=event.slug order=order.code secret=order.secret %}" class="btn btn-default">
+                <a href="{% url 'presale:event.order.cancel' event=event.slug order=order.code secret=order.secret %}" class="btn btn-default">
                     <span class="fa fa-times" aria-hidden="true"></span>
                     {% trans "Cancel payment" %}
                 </a>
