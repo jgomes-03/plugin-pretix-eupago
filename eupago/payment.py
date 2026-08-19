@@ -1084,7 +1084,37 @@ class EuPagoMBWay(EuPagoBaseProvider):
             
             if response.get('estado') == 'Pendente' or response.get('transactionStatus') == 'Success':
                 logger.info(f'MBWay payment {payment.full_id} initialized successfully - waiting for customer to pay')
-                return self._handle_payment_response(payment, response, request)
+                response_payload = {
+                    **response,
+                    'customerPhone': customer_phone,
+                    'countryCode': country_code,
+                    'wait_started_at': timezone.now().isoformat(),
+                    'wait_timeout_seconds': 300,
+                }
+                payment.info = json.dumps(response_payload)
+
+                if self._should_auto_confirm_payment(response):
+                    payment.confirm()
+                    return build_absolute_uri(
+                        self.event,
+                        'presale:event.order',
+                        kwargs={
+                            'order': payment.order.code,
+                            'secret': payment.order.secret
+                        }
+                    )
+
+                payment.state = OrderPayment.PAYMENT_STATE_PENDING
+                payment.save(update_fields=['info', 'state'])
+                return build_absolute_uri(
+                    self.event,
+                    'plugins:eupago:mbway_wait',
+                    kwargs={
+                        'order': payment.order.code,
+                        'hash': payment.order.tagged_secret('plugins:eupago'),
+                        'payment': payment.pk,
+                    }
+                )
             else:
                 raise PaymentException(_('MBWay payment initialization failed'))
                 
