@@ -353,9 +353,14 @@ class EuPagoBaseProvider(BasePaymentProvider):
             payment.state = OrderPayment.PAYMENT_STATE_PENDING
             payment.save(update_fields=['info', 'state'])
             
-        if request:
-            return payment.order.get_absolute_url(request)
-        return payment.order.get_absolute_url()
+        return build_absolute_uri(
+            self.event,
+            'presale:event.order',
+            kwargs={
+                'order': payment.order.code,
+                'secret': payment.order.secret
+            }
+        )
     
     def _should_auto_confirm_payment(self, response: dict) -> bool:
         """
