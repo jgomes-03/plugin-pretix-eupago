@@ -1,414 +1,323 @@
 {% extends "pretixpresale/event/base.html" %}
 {% load i18n %}
-{% load static %}
-{% load compress %}
+{% load money %}
 
-{% block title %}{% trans "MBWay Payment" %}{% endblock %}
+{% block title %}{% trans "MB WAY Payment" %}{% endblock %}
 
 {% block custom_header %}
     {{ block.super }}
-    <!-- Font Awesome for icons -->
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
-    
     <style>
-        /* Pretix-integrated styling for MBWay payment */
-        body {
-            background: var(--pretix-brand-primary-tint-90, #f8f9fa);
-            min-height: 100vh;
-        }
-        
-        .mbway-container {
-            background: white;
-            border-radius: var(--pretix-border-radius-large, 8px);
-            box-shadow: 0 4px 20px rgba(0,0,0,0.1);
-            padding: 2.5rem;
-            margin: 2rem auto;
-            max-width: 600px;
-            border: 1px solid var(--pretix-brand-primary-tint-80, #e9ecef);
-        }
-        
-        .mbway-header {
-            text-align: center;
+        .mbway-wait {
+            margin-top: 2rem;
             margin-bottom: 2rem;
         }
-        
-        .mbway-logo {
-            color: var(--pretix-brand-primary, #3b1c4a);
-            font-size: 3.5rem;
-            margin-bottom: 1rem;
-            animation: pulse 2s infinite;
-        }
-        
-        @keyframes pulse {
-            0%, 100% { opacity: 1; }
-            50% { opacity: 0.7; }
-        }
-        
-        .status-display {
-            text-align: center;
-            margin: 2rem 0;
-        }
-        
-        .status-success {
-            color: var(--pretix-brand-success, #28a745);
-        }
-        
-        .status-waiting {
-            color: var(--pretix-brand-warning, #ffc107);
-        }
-        
-        .status-error {
-            color: var(--pretix-brand-danger, #dc3545);
-        }
-        
-        .payment-details {
-            background: var(--pretix-brand-primary-tint-95, #f8f9fa);
-            border: 1px solid var(--pretix-brand-primary-tint-80, #e9ecef);
-            border-radius: var(--pretix-border-radius-base, 4px);
-            padding: 1.5rem;
-            margin: 2rem 0;
-        }
-        
-        .payment-details h5 {
-            color: var(--pretix-brand-primary, #3b1c4a);
-            margin-bottom: 1rem;
-            font-weight: 600;
-        }
-        
-        .instructions {
-            background: var(--pretix-brand-info-tint-90, #e7f3ff);
-            border-left: 4px solid var(--pretix-brand-info, #17a2b8);
-            padding: 1.5rem;
-            margin: 2rem 0;
-            border-radius: 0 var(--pretix-border-radius-base, 4px) var(--pretix-border-radius-base, 4px) 0;
-        }
-        
-        .instructions h6 {
-            color: var(--pretix-brand-info, #17a2b8);
-            margin-bottom: 1rem;
-            font-weight: 600;
-        }
-        
-        .btn-group {
+
+        .mbway-timer-wrap {
             display: flex;
-            gap: 1rem;
             justify-content: center;
+            margin: 1.5rem 0 1rem;
+        }
+
+        .mbway-timer {
+            position: relative;
+            width: 120px;
+            height: 120px;
+        }
+
+        .mbway-timer-svg {
+            width: 120px;
+            height: 120px;
+            transform: rotate(-90deg);
+        }
+
+        .mbway-timer-track {
+            fill: none;
+            stroke: #e5e7ea;
+            stroke-width: 8;
+        }
+
+        .mbway-timer-progress {
+            fill: none;
+            stroke: #dc3545;
+            stroke-width: 8;
+            stroke-linecap: round;
+            transition: stroke-dashoffset 1s linear, stroke 1s linear;
+        }
+
+        .mbway-timer-label {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            font-size: 1.1em;
+            font-weight: 600;
+            color: #212529;
+        }
+
+        .mbway-status-title {
+            margin-top: 0;
+            margin-bottom: .75rem;
+        }
+
+        .mbway-actions {
+            margin-top: 1.5rem;
+            display: flex;
             flex-wrap: wrap;
-            margin-top: 2rem;
+            gap: .75rem;
         }
-        
-        .btn-custom {
-            padding: 0.75rem 1.5rem;
-            border-radius: var(--pretix-border-radius-base, 4px);
-            font-weight: 500;
-            transition: all 0.3s ease;
-            text-decoration: none;
-            display: inline-flex;
-            align-items: center;
-            gap: 0.5rem;
-        }
-        
-        .btn-primary-custom {
-            background: var(--pretix-brand-primary, #3b1c4a);
-            color: white;
-            border: 2px solid var(--pretix-brand-primary, #3b1c4a);
-        }
-        
-        .btn-primary-custom:hover {
-            background: var(--pretix-brand-primary-darken-10, #2a1434);
-            border-color: var(--pretix-brand-primary-darken-10, #2a1434);
-            color: white;
-            text-decoration: none;
-        }
-        
-        .btn-secondary-custom {
-            background: transparent;
-            color: var(--pretix-brand-primary, #3b1c4a);
-            border: 2px solid var(--pretix-brand-primary-tint-60, #666);
-        }
-        
-        .btn-secondary-custom:hover {
-            background: var(--pretix-brand-primary-tint-90, #f8f9fa);
-            text-decoration: none;
-        }
-        
-        /* Mobile responsiveness */
-        @media (max-width: 768px) {
-            .mbway-container {
-                margin: 1rem;
-                padding: 1.5rem;
-            }
-            
-            .btn-group {
-                flex-direction: column;
-                align-items: center;
-            }
-            
-            .btn-custom {
-                width: 100%;
-                max-width: 300px;
-                justify-content: center;
-            }
-        }
-        
-        .loading-spinner {
-            display: inline-block;
-            width: 20px;
-            height: 20px;
-            border: 2px solid var(--pretix-brand-primary-tint-80, #e9ecef);
-            border-top: 2px solid var(--pretix-brand-primary, #3b1c4a);
-            border-radius: 50%;
-            animation: spin 1s linear infinite;
-        }
-        
-        @keyframes spin {
-            0% { transform: rotate(0deg); }
-            100% { transform: rotate(360deg); }
+
+        .mbway-actions .btn {
+            min-width: 170px;
         }
     </style>
 {% endblock %}
 
 {% block content %}
-<div class="container">
-    <div class="mbway-container">
-        <!-- Header -->
-        <div class="mbway-header">
-            <i class="fas fa-mobile-alt mbway-logo"></i>
-            <h2>{% trans "MBWay Payment" %}</h2>
-            <p class="text-muted">{{ event.name }}</p>
+<div class="container mbway-wait">
+    <div class="panel panel-default">
+        <div class="panel-heading">
+            <h3 class="panel-title">{% trans "MB WAY Payment" %}</h3>
         </div>
-        
-        <!-- Status Display -->
-        <div class="status-display" id="status-display">
-            <h4 class="status-waiting">
-                <i class="fas fa-mobile-alt"></i>
-                {% trans "Waiting for payment confirmation" %}
-            </h4>
-            <p class="text-muted">
-                {% trans "Please check your mobile phone for the MBWay notification" %}
-            </p>
-            <p class="text-muted mb-0">
-                {% trans "Time remaining:" %} <strong id="time-remaining">05:00</strong>
-            </p>
-        </div>
-        
-        <!-- Payment Details -->
-        <div class="payment-details">
-            <h5><i class="fas fa-info-circle"></i> {% trans "Payment Details" %}</h5>
-            <div class="row">
-                <div class="col-md-4">
-                    <strong>{% trans "Amount:" %}</strong><br>
-                    <span class="text-primary">€{{ amount }}</span>
-                </div>
-                <div class="col-md-4">
-                    <strong>{% trans "Phone:" %}</strong><br>
-                    {{ phone }}
-                </div>
-                <div class="col-md-4">
-                    <strong>{% trans "Payment ID:" %}</strong><br>
-                    <code>{{ payment.full_id }}</code>
+        <div class="panel-body">
+            <div id="status-display" class="text-center">
+                <h4 class="mbway-status-title text-warning">
+                    <span class="fa fa-clock-o" aria-hidden="true"></span>
+                    {% trans "Waiting for payment confirmation" %}
+                </h4>
+                <p class="text-muted">{% trans "Please confirm the MB WAY request on your phone." %}</p>
+                <div class="mbway-timer-wrap">
+                    <div class="mbway-timer" aria-live="polite" aria-label="{% trans "Remaining time" %}">
+                        <svg class="mbway-timer-svg" viewBox="0 0 120 120" aria-hidden="true">
+                            <circle class="mbway-timer-track" cx="60" cy="60" r="52"></circle>
+                            <circle id="timer-progress" class="mbway-timer-progress" cx="60" cy="60" r="52"></circle>
+                        </svg>
+                        <span id="time-remaining" class="mbway-timer-label">05:00</span>
+                    </div>
                 </div>
             </div>
-        </div>
-        
-        <!-- Instructions -->
-        <div class="instructions">
-            <h6><i class="fas fa-info-circle"></i> {% trans "Instructions" %}</h6>
-            <ol>
-                <li>{% trans "Check your mobile phone for an MBWay notification" %}</li>
-                <li>{% trans "Open the notification and confirm the payment" %}</li>
-                <li>{% trans "You will be automatically redirected when payment is confirmed" %}</li>
-            </ol>
-            
-            <div class="alert alert-info mt-3">
-                <i class="fas fa-info-circle"></i>
-                <strong>{% trans "Important:" %}</strong>
-                {% trans "The payment will be processed automatically when you confirm it on your mobile device. This page will refresh automatically when payment is detected." %}
+
+            <div class="well">
+                <div class="row">
+                    <div class="col-sm-4">
+                        <strong>{% trans "Amount" %}</strong><br>
+                        {{ payment.amount|money:event.currency }}
+                    </div>
+                    <div class="col-sm-4">
+                        <strong>{% trans "Phone" %}</strong><br>
+                        <code>{{ phone|default:"***" }}</code>
+                    </div>
+                    <div class="col-sm-4">
+                        <strong>{% trans "Reference" %}</strong><br>
+                        <code>{{ payment.full_id }}</code>
+                    </div>
+                </div>
             </div>
-        </div>
-        
-        <!-- Action Buttons -->
-        <div class="btn-group">
-            <button id="check-status-btn" class="btn-custom btn-primary-custom" onclick="checkPaymentStatus()">
-                <span class="loading-spinner" id="check-spinner" style="display: none;"></span>
-                <i class="fas fa-sync-alt" id="check-icon"></i>
-                <span id="check-text">{% trans "Check Status" %}</span>
-            </button>
-            <a href="{{ request.event.get_absolute_url }}" class="btn-custom btn-secondary-custom">
-                <i class="fas fa-arrow-left"></i>
-                {% trans "Back to Event" %}
-            </a>
+
+            <div class="alert alert-info" role="alert">
+                <strong>{% trans "Automatic update" %}:</strong>
+                {% trans "This page checks payment status automatically and refreshes as soon as payment is confirmed." %}
+            </div>
+
+            <div class="mbway-actions">
+                <button id="check-status-btn" type="button" class="btn btn-primary" onclick="checkPaymentStatus(true)">
+                    <span class="fa fa-refresh" aria-hidden="true"></span>
+                    <span id="check-text">{% trans "Check status now" %}</span>
+                </button>
+                <a href="{% url 'presale:event.order.cancel' organizer=event.organizer.slug event=event.slug order=order.code secret=order.secret %}" class="btn btn-default">
+                    <span class="fa fa-times" aria-hidden="true"></span>
+                    {% trans "Cancel payment" %}
+                </a>
+            </div>
         </div>
     </div>
 </div>
-
 {% endblock %}
 
 {% block javascript %}
-    <script>
-        var pollInterval = null;
-        var countdownInterval = null;
-        var remainingSeconds = {{ remaining_seconds|default:300 }};
-        var timerReachedZero = false;
+<script>
+(function () {
+    var pollInterval = null;
+    var countdownInterval = null;
+    var remainingSeconds = {{ remaining_seconds|default:300 }};
+    var totalSeconds = {{ timeout_seconds|default:300 }};
+    var timerProgress = null;
+    var timerRadius = 52;
+    var timerCircumference = 2 * Math.PI * timerRadius;
 
-        document.addEventListener('DOMContentLoaded', function() {
+    document.addEventListener('DOMContentLoaded', function () {
+        timerProgress = document.getElementById('timer-progress');
+        if (timerProgress) {
+            timerProgress.style.strokeDasharray = timerCircumference;
+        }
+
+        updateTimerDisplay();
+        countdownInterval = setInterval(tickCountdown, 1000);
+        pollInterval = setInterval(function () { checkPaymentStatus(false); }, 3000);
+        checkPaymentStatus(false);
+    });
+
+    function tickCountdown() {
+        if (remainingSeconds <= 0) {
             updateTimerDisplay();
-            countdownInterval = setInterval(tickCountdown, 1000);
-            pollInterval = setInterval(function() { checkPaymentStatus(false); }, 3000);
-            checkPaymentStatus(false);
-        });
-
-        function tickCountdown() {
-            if (remainingSeconds <= 0) {
-                if (!timerReachedZero) {
-                    timerReachedZero = true;
-                    checkPaymentStatus(false);
-                }
-                return;
-            }
-            remainingSeconds -= 1;
-            updateTimerDisplay();
+            return;
         }
 
-        function updateTimerDisplay() {
-            var minutes = String(Math.floor(remainingSeconds / 60)).padStart(2, '0');
-            var seconds = String(remainingSeconds % 60).padStart(2, '0');
-            var timerElement = document.getElementById('time-remaining');
-            if (timerElement) {
-                timerElement.textContent = minutes + ':' + seconds;
-            }
+        remainingSeconds -= 1;
+        updateTimerDisplay();
+    }
+
+    function updateTimerDisplay() {
+        var minutes = String(Math.floor(remainingSeconds / 60)).padStart(2, '0');
+        var seconds = String(remainingSeconds % 60).padStart(2, '0');
+        var ratio = totalSeconds > 0 ? Math.max(0, Math.min(1, remainingSeconds / totalSeconds)) : 0;
+
+        var timeElement = document.getElementById('time-remaining');
+        if (timeElement) {
+            timeElement.textContent = minutes + ':' + seconds;
         }
 
-        function clearPolling() {
-            if (pollInterval) {
-                clearInterval(pollInterval);
-                pollInterval = null;
-            }
-            if (countdownInterval) {
-                clearInterval(countdownInterval);
-                countdownInterval = null;
-            }
-        }
+        if (timerProgress) {
+            timerProgress.style.strokeDashoffset = timerCircumference * (1 - ratio);
 
-        function checkPaymentStatus(manual) {
-            var button = document.getElementById('check-status-btn');
-            var spinner = document.getElementById('check-spinner');
-            var icon = document.getElementById('check-icon');
-            var text = document.getElementById('check-text');
-            if (manual && button) {
-                spinner.style.display = 'inline-block';
-                icon.style.display = 'none';
+            var start = { r: 220, g: 53, b: 69 };   // red
+            var end = { r: 173, g: 181, b: 189 };  // gray
+            var inv = 1 - ratio;
+            var r = Math.round(start.r + ((end.r - start.r) * inv));
+            var g = Math.round(start.g + ((end.g - start.g) * inv));
+            var b = Math.round(start.b + ((end.b - start.b) * inv));
+            timerProgress.style.stroke = 'rgb(' + r + ', ' + g + ', ' + b + ')';
+        }
+    }
+
+    function clearPolling() {
+        if (pollInterval) {
+            clearInterval(pollInterval);
+            pollInterval = null;
+        }
+        if (countdownInterval) {
+            clearInterval(countdownInterval);
+            countdownInterval = null;
+        }
+    }
+
+    function checkPaymentStatus(manual) {
+        var button = document.getElementById('check-status-btn');
+        var text = document.getElementById('check-text');
+
+        if (manual && button) {
+            button.disabled = true;
+            if (text) {
                 text.textContent = '{% trans "Checking..." %}';
-                button.disabled = true;
             }
+        }
 
-            fetch(window.location.href, {
-                method: 'POST',
-                headers: {
-                    'X-Requested-With': 'XMLHttpRequest',
-                    'X-CSRFToken': getCookie('csrftoken'),
-                    'Content-Type': 'application/json',
-                    'Cache-Control': 'no-cache'
-                },
-                credentials: 'same-origin'
-            })
-            .then(response => {
+        fetch(window.location.href, {
+            method: 'POST',
+            headers: {
+                'X-Requested-With': 'XMLHttpRequest',
+                'X-CSRFToken': getCookie('csrftoken'),
+                'Content-Type': 'application/json',
+                'Cache-Control': 'no-cache'
+            },
+            credentials: 'same-origin'
+        })
+            .then(function (response) {
                 if (!response.ok) {
-                    throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+                    throw new Error('HTTP ' + response.status);
                 }
                 return response.json();
             })
-            .then(data => {
+            .then(function (data) {
                 if (data.confirmed) {
                     clearPolling();
                     showPaymentSuccess();
-                    setTimeout(() => {
-                        window.location.href = data.redirect_url;
-                    }, 1500);
+                    setTimeout(function () {
+                        if (data.redirect_url) {
+                            window.location.href = data.redirect_url;
+                        } else {
+                            window.location.reload();
+                        }
+                    }, 700);
                 } else if (data.failed || data.timed_out) {
                     clearPolling();
                     showPaymentError();
-                    setTimeout(() => {
-                        window.location.href = data.redirect_url;
-                    }, 1500);
+                    setTimeout(function () {
+                        if (data.redirect_url) {
+                            window.location.href = data.redirect_url;
+                        } else {
+                            window.location.reload();
+                        }
+                    }, 1200);
                 }
             })
-            .catch(() => {
+            .catch(function () {
                 if (manual) {
                     showErrorMessage('{% trans "Connection error. Please refresh the page to continue monitoring your payment." %}');
                 }
             })
-            .finally(() => {
+            .finally(function () {
                 if (manual && button) {
-                    spinner.style.display = 'none';
-                    icon.style.display = 'inline-block';
-                    text.textContent = '{% trans "Check Status" %}';
                     button.disabled = false;
-                }
-            });
-        }
-         
-        function showPaymentSuccess() {
-            const statusDisplay = document.getElementById('status-display');
-            
-            if (statusDisplay) {
-                statusDisplay.innerHTML = `
-                    <h4 class="status-success">
-                        <i class="fas fa-check-circle"></i>
-                        {% trans "Payment Confirmed!" %}
-                    </h4>
-                    <p>{% trans "Redirecting to your order..." %}</p>
-                `;
-            }
-        }
-        
-        function showPaymentError() {
-            const statusDisplay = document.getElementById('status-display');
-            
-            if (statusDisplay) {
-                statusDisplay.innerHTML = `
-                    <h4 class="status-error">
-                        <i class="fas fa-times-circle"></i>
-                        {% trans "Payment Pending Timeout" %}
-                    </h4>
-                    <p>{% trans "The payment window ended and the order will be cancelled." %}</p>
-                `;
-            }
-        }
-        
-        function showErrorMessage(message) {
-            const statusDisplay = document.getElementById('status-display');
-            if (statusDisplay) {
-                statusDisplay.innerHTML = `
-                    <h4 class="status-error">
-                        <i class="fas fa-exclamation-triangle"></i>
-                        {% trans "Connection Error" %}
-                    </h4>
-                    <p>${message}</p>
-                    <button onclick="location.reload()" class="btn-custom btn-primary-custom">
-                        <i class="fas fa-refresh"></i>
-                        {% trans "Refresh Page" %}
-                    </button>
-                `;
-            }
-        }
-        
-        // Enhanced CSRF token function
-        function getCookie(name) {
-            let cookieValue = null;
-            if (document.cookie && document.cookie !== '') {
-                const cookies = document.cookie.split(';');
-                for (let i = 0; i < cookies.length; i++) {
-                    const cookie = cookies[i].trim();
-                    if (cookie.substring(0, name.length + 1) === (name + '=')) {
-                        cookieValue = decodeURIComponent(cookie.substring(name.length + 1));
-                        break;
+                    if (text) {
+                        text.textContent = '{% trans "Check status now" %}';
                     }
                 }
-            }
-            return cookieValue;
+            });
+    }
+
+    function showPaymentSuccess() {
+        var statusDisplay = document.getElementById('status-display');
+        if (statusDisplay) {
+            statusDisplay.innerHTML = '' +
+                '<h4 class="mbway-status-title text-success">' +
+                    '<span class="fa fa-check-circle" aria-hidden="true"></span> ' +
+                    '{% trans "Payment confirmed" %}' +
+                '</h4>' +
+                '<p>{% trans "Refreshing your order page..." %}</p>';
         }
-        
-        window.checkPaymentStatus = function() { checkPaymentStatus(true); };
-    </script>
+    }
+
+    function showPaymentError() {
+        var statusDisplay = document.getElementById('status-display');
+        if (statusDisplay) {
+            statusDisplay.innerHTML = '' +
+                '<h4 class="mbway-status-title text-danger">' +
+                    '<span class="fa fa-times-circle" aria-hidden="true"></span> ' +
+                    '{% trans "Payment expired or failed" %}' +
+                '</h4>' +
+                '<p>{% trans "Redirecting you now..." %}</p>';
+        }
+    }
+
+    function showErrorMessage(message) {
+        var statusDisplay = document.getElementById('status-display');
+        if (statusDisplay) {
+            statusDisplay.innerHTML = '' +
+                '<h4 class="mbway-status-title text-danger">' +
+                    '<span class="fa fa-exclamation-triangle" aria-hidden="true"></span> ' +
+                    '{% trans "Connection error" %}' +
+                '</h4>' +
+                '<p>' + message + '</p>';
+        }
+    }
+
+    function getCookie(name) {
+        var cookieValue = null;
+        if (document.cookie && document.cookie !== '') {
+            var cookies = document.cookie.split(';');
+            for (var i = 0; i < cookies.length; i++) {
+                var cookie = cookies[i].trim();
+                if (cookie.substring(0, name.length + 1) === (name + '=')) {
+                    cookieValue = decodeURIComponent(cookie.substring(name.length + 1));
+                    break;
+                }
+            }
+        }
+        return cookieValue;
+    }
+
+    window.addEventListener('beforeunload', clearPolling);
+    window.checkPaymentStatus = checkPaymentStatus;
+})();
+</script>
 {% endblock %}
