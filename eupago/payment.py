@@ -7,6 +7,7 @@ import requests
 from collections import OrderedDict
 from decimal import Decimal
 from django import forms
+from django.conf import settings
 from django.core.exceptions import ValidationError
 from django.http import HttpRequest, HttpResponse
 from django.template.loader import get_template
@@ -21,6 +22,7 @@ from pretix.base.payment import BasePaymentProvider, PaymentException
 from pretix.base.settings import SettingsSandbox
 from pretix.multidomain.urlreverse import build_absolute_uri
 from pretix.multidomain.urlreverse import build_absolute_uri
+
 
 logger = logging.getLogger('pretix.plugins.eupago')
 
